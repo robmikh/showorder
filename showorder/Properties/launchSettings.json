@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "showorder": {
+      "commandName": "Project",
+      "commandLineArgs": "\"F:\\Trunk\\showorder-data\" \"F:\\Trunk\\showorder-data\\srt-data\""
+    }
+  }
+}
