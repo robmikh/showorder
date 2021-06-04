@@ -61,7 +61,7 @@ namespace showorder
             // If we couldn't find any subtitles, exit
             if (files.Count == 0)
             {
-                Console.WriteLine("No english subtitles found!");
+                Console.WriteLine("No English subtitles found!");
                 return;
             }
 
