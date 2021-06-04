@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 
 namespace showorder
 {
@@ -19,7 +18,7 @@ namespace showorder
                     var parts = chunk.Split('\n', 3);
                     var text = parts[2].Replace('\n', ' ');
                     // We also need to remove tags
-                    subtitles.Add(Regex.Replace(text, "<.*?>", string.Empty));
+                    subtitles.Add(TextSanitizer.Sanitize(text));
                     if (subtitles.Count >= numSubtitles)
                     {
                         return subtitles;

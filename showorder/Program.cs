@@ -26,23 +26,43 @@ namespace showorder
             var engine = OcrEngine.TryCreateFromLanguage(new Language("en-US"));
 
             // Collect subtitles from the file(s)
+            Console.WriteLine("Loading subtitles from mkv files...");
             var files = new List<(string, List<string>)>();
             if (Directory.Exists(path1))
             {
                 foreach (var file in Directory.GetFiles(path1, "*.mkv"))
                 {
-                    var subtitles = GetFirstFewSubtitiles(file, engine, numSubtitles);
-                    files.Add((file, subtitles));
+                    if (GetFirstFewSubtitiles(file, engine, numSubtitles) is List<string> subtitles)
+                    {
+                        // Sometimes there's a subtitle track with no subtitles in it...
+                        if (subtitles.Count > 0)
+                        {
+                            files.Add((file, subtitles));
+                        }
+                    }
                 }
             }
             else if (File.Exists(path1) && Path.GetExtension(path1) == ".mkv")
             {
-                var subtitles = GetFirstFewSubtitiles(path1, engine, numSubtitles);
-                files.Add((path1, subtitles));
+                if (GetFirstFewSubtitiles(path1, engine, numSubtitles) is List<string> subtitles)
+                {
+                    // Sometimes there's a subtitle track with no subtitles in it...
+                    if (subtitles.Count > 0)
+                    {
+                        files.Add((path1, subtitles));
+                    }
+                }
             }
             else
             {
                 throw new Exception($"Invalid input: \"{path1}\"");
+            }
+
+            // If we couldn't find any subtitles, exit
+            if (files.Count == 0)
+            {
+                Console.WriteLine("No english subtitles found!");
+                return;
             }
 
             // If we have a second param, use it to compare the subtitles. Otherwise,
@@ -62,6 +82,7 @@ namespace showorder
             var path2 = args[1];
 
             // Load reference data
+            Console.WriteLine("Loading reference data...");
             var referenceFiles = new List<(string, List<string>)>();
             if (Directory.Exists(path2))
             {
@@ -82,9 +103,11 @@ namespace showorder
             }
 
             // Compare subtitles
-            var mapping = new Dictionary<string, string>();
+            Console.WriteLine("Comparing subtitles...");
+            var mapping = new Dictionary<string, List<string>>();
             foreach (var (file, subtitles) in files)
             {
+                Console.WriteLine($"  Inspecting \"{Path.GetFileName(file)}\"");
                 foreach (var (refFile, refSubtitles) in referenceFiles)
                 {
                     var match = true;
@@ -103,19 +126,35 @@ namespace showorder
                     }
                     if (match)
                     {
-                        mapping.Add(file, refFile);
+                        if (mapping.ContainsKey(file))
+                        {
+                            var list = mapping[file];
+                            list.Add(refFile);
+                        }
+                        else
+                        {
+                            var matches = new List<string>();
+                            matches.Add(refFile);
+                            mapping.Add(file, matches);
+                        }
                     }
                 }
             }
 
             // Output results
+            Console.WriteLine("Results: ");
             foreach (var (key, value) in mapping)
             {
-                Console.WriteLine($"{key}\t->\t{value}");
+                var fileName = Path.GetFileName(key);
+                Console.WriteLine($"{fileName} :");
+                foreach (var entry in value)
+                {
+                    Console.WriteLine($"  {Path.GetFileName(entry)}");
+                }
             }
         }
 
-        static List<string> GetFirstFewSubtitiles(string path, OcrEngine engine, int num)
+        static List<string>? GetFirstFewSubtitiles(string path, OcrEngine engine, int num)
         {
             // Matroska writes to the console :(
             // This is a dirty trick to stop that
@@ -123,9 +162,14 @@ namespace showorder
             Console.SetOut(DummyWriter);
             var doc = MatroskaSerializer.Deserialize(new FileStream(path, FileMode.Open, FileAccess.Read));
             Console.SetOut(oldOut);
-            var trackNumber = FindTrackNumber(doc);
-            var subtitles = GetFirstFewSubtitles(doc, engine, trackNumber, 5);
-            return subtitles;
+            if (FindTrackNumber(doc) is ulong trackNumber)
+            {
+                return GetFirstFewSubtitles(doc, engine, trackNumber, 5);
+            }
+            else
+            {
+                return null;
+            }
         }
 
         static List<string> GetFirstFewSubtitles(MatroskaDocument doc, OcrEngine engine, ulong trackNumber, int num)
@@ -150,10 +194,14 @@ namespace showorder
                                         // Skip empty subtitles
                                         if (!string.IsNullOrEmpty(result.Text))
                                         {
-                                            list.Add(result.Text);
-                                            if (list.Count >= num)
+                                            var text = TextSanitizer.Sanitize(result.Text);
+                                            if (!string.IsNullOrEmpty(text))
                                             {
-                                                return list;
+                                                list.Add(text);
+                                                if (list.Count >= num)
+                                                {
+                                                    return list;
+                                                }
                                             }
                                         }
                                     }
@@ -166,10 +214,9 @@ namespace showorder
             return list;
         }
 
-        static ulong FindTrackNumber(MatroskaDocument doc)
+        static ulong? FindTrackNumber(MatroskaDocument doc)
         {
-            ulong trackNumber = 0;
-            bool found = false;
+            ulong? trackNumber = null;
             foreach (var trackEntry in doc.Segment.Tracks.TrackEntries)
             {
                 // We're only looking for subtitles
@@ -179,18 +226,14 @@ namespace showorder
                     if (trackEntry.CodecID == "S_HDMV/PGS")
                     {
                         var language = trackEntry.Language;
+                        // For now we assume English
                         if (language == "eng")
                         {
-                            found = true;
                             trackNumber = trackEntry.TrackNumber;
                             break;
                         }
                     }
                 }
-            }
-            if (!found)
-            {
-                throw new Exception("No english PGS track found.");
             }
             return trackNumber;
         }
