@@ -8,7 +8,7 @@ namespace showorder
         {
             var text1 = Regex.Replace(text, "<.*?>", string.Empty);
             var text2 = Regex.Replace(text1, "\\[.*?\\]", string.Empty);
-            return text2;
+            return text2.Trim();
         }
     }
 }
