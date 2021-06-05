@@ -241,7 +241,7 @@ namespace showorder
             var doc = MatroskaSerializer.Deserialize(new FileStream(path, FileMode.Open, FileAccess.Read));
             if (FindTrackNumber(doc) is ulong trackNumber)
             {
-                return GetFirstFewSubtitles(doc, engine, trackNumber, 5);
+                return GetFirstFewSubtitles(doc, engine, trackNumber, num);
             }
             else
             {
