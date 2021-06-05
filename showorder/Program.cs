@@ -103,7 +103,7 @@ namespace showorder
                 // First will be the lowest
                 var (refFile, distance) = fileDistances.First();
                 // TODO: Make min distance configurable
-                if (distance < 3 * numSubtitles)
+                if (distance < 3 * (numSubtitles + 1))
                 {
                     mappings.Add((mkvPath, refFile));
                 }
