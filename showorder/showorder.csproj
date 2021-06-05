@@ -6,12 +6,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="LevenshteinMinimumEditDistance" Version="1.2.0" />
     <PackageReference Include="MathNet.Numerics" Version="4.15.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\deps\Matroska\src\Matroska\Matroska.csproj" />
+    <ProjectReference Include="..\deps\MinimumEditDistance\MinimumEditDistance\MinimumEditDistance.csproj" />
   </ItemGroup>
 
 </Project>
