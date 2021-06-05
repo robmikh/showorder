@@ -4,11 +4,18 @@ namespace showorder
 {
     static class TextSanitizer
     {
+        private static string RegexReplace(this string text, string pattern, string replacement)
+        {
+            return Regex.Replace(text, pattern, replacement);
+        }
+        private static string RegexRemove(this string text, string pattern)
+        {
+            return text.RegexReplace(pattern, string.Empty);
+        }
+
         public static string Sanitize(string text)
         {
-            var text1 = Regex.Replace(text, "<.*?>", string.Empty);
-            var text2 = Regex.Replace(text1, "\\[.*?\\]", string.Empty);
-            return text2.Trim();
+            return text.RegexRemove("<.*?>").RegexRemove("\\[.*?\\]").RegexRemove("[A-z]+:").Trim().ToLower();
         }
     }
 }

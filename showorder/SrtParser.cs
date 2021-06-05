@@ -7,7 +7,7 @@ namespace showorder
     {
         public static List<string> ParseNSubtitles(string path, int numSubtitles)
         {
-            var data = File.ReadAllText(path);
+            var data = File.ReadAllText(path).Replace("\r\n", "\n");
             var chunks = data.Split("\n\n");
 
             var subtitles = new List<string>();
@@ -17,7 +17,6 @@ namespace showorder
                 {
                     var parts = chunk.Split('\n', 3);
                     var text = parts[2].Replace('\n', ' ');
-                    // We also need to remove tags
                     subtitles.Add(TextSanitizer.Sanitize(text));
                     if (subtitles.Count >= numSubtitles)
                     {
