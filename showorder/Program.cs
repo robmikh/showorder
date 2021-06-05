@@ -13,8 +13,6 @@ namespace showorder
 {
     class Program
     {
-        static TextWriter DummyWriter = new DummyWriter();
-
         static void Main(string[] args)
         {
             if (args.Length < 1)
