@@ -2,8 +2,10 @@
 using Matroska.Models;
 using MinimumEditDistance;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Windows.Globalization;
 using Windows.Media.Ocr;
 
@@ -23,40 +25,10 @@ namespace showorder
 
             // TODO: Make num subtitles configurable
             var numSubtitles = 5;
-            var engine = OcrEngine.TryCreateFromLanguage(new Language("en-US"));
 
             // Collect subtitles from the file(s)
             Console.WriteLine("Loading subtitles from mkv files...");
-            var files = new List<(string, List<string>)>();
-            if (Directory.Exists(path1))
-            {
-                foreach (var file in Directory.GetFiles(path1, "*.mkv"))
-                {
-                    if (GetFirstFewSubtitiles(file, engine, numSubtitles) is List<string> subtitles)
-                    {
-                        // Sometimes there's a subtitle track with no subtitles in it...
-                        if (subtitles.Count > 0)
-                        {
-                            files.Add((file, subtitles));
-                        }
-                    }
-                }
-            }
-            else if (File.Exists(path1) && Path.GetExtension(path1) == ".mkv")
-            {
-                if (GetFirstFewSubtitiles(path1, engine, numSubtitles) is List<string> subtitles)
-                {
-                    // Sometimes there's a subtitle track with no subtitles in it...
-                    if (subtitles.Count > 0)
-                    {
-                        files.Add((path1, subtitles));
-                    }
-                }
-            }
-            else
-            {
-                throw new Exception($"Invalid input: \"{path1}\"");
-            }
+            var files = ProcessInputPath(path1, numSubtitles);
 
             // If we couldn't find any subtitles, exit
             if (files.Count == 0)
@@ -83,25 +55,8 @@ namespace showorder
 
             // Load reference data
             Console.WriteLine("Loading reference data...");
-            var referenceFiles = new List<(string, List<string>)>();
-            if (Directory.Exists(path2))
-            {
-                foreach (var file in Directory.GetFiles(path2, "*.srt"))
-                {
-                    var subtitles = SrtParser.ParseNSubtitles(file, numSubtitles);
-                    referenceFiles.Add((file, subtitles));
-                }
-            }
-            else if (File.Exists(path2) && Path.GetExtension(path2) == ".srt")
-            {
-                var subtitles = SrtParser.ParseNSubtitles(path2, numSubtitles);
-                referenceFiles.Add((path2, subtitles));
-            }
-            else
-            {
-                throw new Exception($"Invalid input: \"{path2}\"");
-            }
-
+            var referenceFiles = ProcessReferencePath(path2, numSubtitles);
+            
             // Compare subtitles
             Console.WriteLine("Comparing subtitles...");
             var mapping = new Dictionary<string, List<string>>();
@@ -150,6 +105,63 @@ namespace showorder
                 foreach (var entry in value)
                 {
                     Console.WriteLine($"  {Path.GetFileName(entry)}");
+                }
+            }
+        }
+
+        static ConcurrentBag<(string, List<string>)> ProcessReferencePath(string path, int numSubtitles)
+        {
+            var referenceFiles = new ConcurrentBag<(string, List<string>)>();
+            if (Directory.Exists(path))
+            {
+                Parallel.ForEach(Directory.GetFiles(path, "*.srt"), file =>
+                {
+                    var subtitles = SrtParser.ParseNSubtitles(file, numSubtitles);
+                    referenceFiles.Add((file, subtitles));
+                });
+            }
+            else if (File.Exists(path) && Path.GetExtension(path) == ".srt")
+            {
+                var subtitles = SrtParser.ParseNSubtitles(path, numSubtitles);
+                referenceFiles.Add((path, subtitles));
+            }
+            else
+            {
+                throw new Exception($"Invalid reference path: \"{path}\"");
+            }
+            return referenceFiles;
+        }
+
+        static ConcurrentBag<(string, List<string>)> ProcessInputPath(string path, int numSubtitles)
+        {
+            var files = new ConcurrentBag<(string, List<string>)>();
+            if (Directory.Exists(path))
+            {
+                Parallel.ForEach(Directory.GetFiles(path, "*.mkv"), file =>
+                {
+                    ProcessMkvFile(file, files, numSubtitles);
+                });
+            }
+            else if (File.Exists(path) && Path.GetExtension(path) == ".mkv")
+            {
+                ProcessMkvFile(path, files, numSubtitles);
+            }
+            else
+            {
+                throw new Exception($"Invalid input path: \"{path}\"");
+            }
+            return files;
+        }
+
+        static void ProcessMkvFile(string path, ConcurrentBag<(string, List<string>)> results, int numSubtitles)
+        {
+            var engine = OcrEngine.TryCreateFromLanguage(new Language("en-US"));
+            if (GetFirstFewSubtitiles(path, engine, numSubtitles) is List<string> subtitles)
+            {
+                // Sometimes there's a subtitle track with no subtitles in it...
+                if (subtitles.Count > 0)
+                {
+                    results.Add((path, subtitles));
                 }
             }
         }
