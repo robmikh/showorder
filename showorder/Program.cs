@@ -66,6 +66,11 @@ namespace showorder
                     var normalizedSubtitle = subtitle.Substring(0, length);
                     var normalizedRefSubtitle = refSubtitle.Substring(0, length);
 
+                    //Console.WriteLine("Comparing:");
+                    //Console.WriteLine($"  {normalizedSubtitle}");
+                    //Console.WriteLine("  to");
+                    //Console.WriteLine($"  {normalizedRefSubtitle}");
+                    //Console.WriteLine("");
                     var distance = Levenshtein.CalculateDistance(normalizedSubtitle, normalizedRefSubtitle, 1);
                     if (distances.ContainsKey(file))
                     {

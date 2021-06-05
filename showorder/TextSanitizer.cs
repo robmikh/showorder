@@ -49,7 +49,7 @@ namespace showorder
             {
                 return string.Empty;
             }
-            return text.RegexRemove("<.*?>").RegexRemove("\\[.*?\\]").RegexRemove("[A-z]+:").RemovePunctuation().Trim();
+            return lowered.RegexRemove("<.*?>").RegexRemove("\\[.*?\\]").RegexRemove("[A-z]+:").RemovePunctuation().Trim();
         }
     }
 }
