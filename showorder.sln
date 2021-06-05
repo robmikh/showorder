@@ -3,7 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31313.79
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "showorder", "showorder\showorder.csproj", "{ED571F6B-9599-4A30-8856-3CD5FD50BCFE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "showorder", "showorder\showorder.csproj", "{ED571F6B-9599-4A30-8856-3CD5FD50BCFE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deps", "deps", "{A79A7A18-AEA5-4F09-8EE0-7FF99845576D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Matroska", "deps\Matroska\src\Matroska\Matroska.csproj", "{B6269AAC-170A-4346-1234-579DED3D1234}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Span.ReaderWriter", "deps\Matroska\src\Span.ReaderWriter\Span.ReaderWriter.csproj", "{2FBBA506-46CC-4BB1-BE69-37D1090E6999}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,9 +21,21 @@ Global
 		{ED571F6B-9599-4A30-8856-3CD5FD50BCFE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED571F6B-9599-4A30-8856-3CD5FD50BCFE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED571F6B-9599-4A30-8856-3CD5FD50BCFE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6269AAC-170A-4346-1234-579DED3D1234}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6269AAC-170A-4346-1234-579DED3D1234}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6269AAC-170A-4346-1234-579DED3D1234}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6269AAC-170A-4346-1234-579DED3D1234}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2FBBA506-46CC-4BB1-BE69-37D1090E6999}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2FBBA506-46CC-4BB1-BE69-37D1090E6999}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2FBBA506-46CC-4BB1-BE69-37D1090E6999}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2FBBA506-46CC-4BB1-BE69-37D1090E6999}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B6269AAC-170A-4346-1234-579DED3D1234} = {A79A7A18-AEA5-4F09-8EE0-7FF99845576D}
+		{2FBBA506-46CC-4BB1-BE69-37D1090E6999} = {A79A7A18-AEA5-4F09-8EE0-7FF99845576D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {16D7EEC8-EA8F-4F62-AE29-7873641C8A27}

@@ -1,0 +1,3 @@
+[submodule "deps/Matroska"]
+	path = deps/Matroska
+	url = https://github.com/robmikh/Matroska.git

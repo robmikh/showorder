@@ -156,12 +156,7 @@ namespace showorder
 
         static List<string>? GetFirstFewSubtitiles(string path, OcrEngine engine, int num)
         {
-            // Matroska writes to the console :(
-            // This is a dirty trick to stop that
-            var oldOut = Console.Out;
-            Console.SetOut(DummyWriter);
             var doc = MatroskaSerializer.Deserialize(new FileStream(path, FileMode.Open, FileAccess.Read));
-            Console.SetOut(oldOut);
             if (FindTrackNumber(doc) is ulong trackNumber)
             {
                 return GetFirstFewSubtitles(doc, engine, trackNumber, 5);

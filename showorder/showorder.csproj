@@ -8,7 +8,10 @@
   <ItemGroup>
     <PackageReference Include="LevenshteinMinimumEditDistance" Version="1.2.0" />
     <PackageReference Include="MathNet.Numerics" Version="4.15.0" />
-    <PackageReference Include="Matroska" Version="0.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\deps\Matroska\src\Matroska\Matroska.csproj" />
   </ItemGroup>
 
 </Project>
