@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.Globalization;
 using Windows.Media.Ocr;
@@ -39,14 +40,7 @@ namespace showorder
             // print the summary and complete.
             if (args.Length < 2)
             {
-                foreach (var (file, subtitles) in files)
-                {
-                    Console.WriteLine(file);
-                    foreach (var subtitle in subtitles)
-                    {
-                        Console.WriteLine($"  \"{subtitle}\"");
-                    }
-                }
+                PrintSubtitles(files);
                 return;
             }
             var path2 = args[1];
@@ -54,57 +48,115 @@ namespace showorder
             // Load reference data
             Console.WriteLine("Loading reference data...");
             var referenceFiles = ProcessReferencePath(path2, numSubtitles);
-            
+
+            // Flatten our data
+            var subtitles = FlattenSubtitles(files);
+            var refSubtitles = FlattenSubtitles(referenceFiles);
+
             // Compare subtitles
             Console.WriteLine("Comparing subtitles...");
-            var mapping = new Dictionary<string, List<string>>();
-            foreach (var (file, subtitles) in files)
+            var distances = new Dictionary<string, List<(string, int)>>();
+            foreach (var (file, subtitle) in subtitles)
             {
                 Console.WriteLine($"  Inspecting \"{Path.GetFileName(file)}\"");
-                foreach (var (refFile, refSubtitles) in referenceFiles)
+                foreach (var (refFile, refSubtitle) in refSubtitles)
                 {
-                    var match = true;
-                    for (var i = 0; i < subtitles.Count; i++)
-                    {
-                        var subtitle = subtitles[i];
-                        var refSubtitle = refSubtitles[i];
+                    // Normalize to shortest
+                    var length = Math.Min(subtitle.Length, refSubtitle.Length);
+                    var normalizedSubtitle = subtitle.Substring(0, length);
+                    var normalizedRefSubtitle = refSubtitle.Substring(0, length);
 
-                        // TODO: Make min distance configurable
-                        var distance = Levenshtein.CalculateDistance(subtitle, refSubtitle, 1);
-                        if (distance >= 3)
-                        {
-                            match = false;
-                            break;
-                        }
-                    }
-                    if (match)
+                    var distance = Levenshtein.CalculateDistance(normalizedSubtitle, normalizedRefSubtitle, 1);
+                    if (distances.ContainsKey(file))
                     {
-                        if (mapping.ContainsKey(file))
-                        {
-                            var list = mapping[file];
-                            list.Add(refFile);
-                        }
-                        else
-                        {
-                            var matches = new List<string>();
-                            matches.Add(refFile);
-                            mapping.Add(file, matches);
-                        }
+                        var list = distances[file];
+                        list.Add((refFile, distance));
+                    }
+                    else
+                    {
+                        var matches = new List<(string, int)>();
+                        matches.Add((refFile, distance));
+                        distances.Add(file, matches);
                     }
                 }
             }
 
-            // Output results
-            Console.WriteLine("Results: ");
-            foreach (var (key, value) in mapping)
+            // Sort distances
+            foreach (var (_, fileDistances) in distances)
             {
-                var fileName = Path.GetFileName(key);
+                fileDistances.Sort((x, y) => x.Item2.CompareTo(y.Item2));
+            }
+
+            // Output distances
+            Console.WriteLine("Distances: ");
+            foreach (var (mkvPath, fileDistances) in distances)
+            {
+                var fileName = Path.GetFileName(mkvPath);
                 Console.WriteLine($"{fileName} :");
-                foreach (var entry in value)
+                foreach (var (refFile, distance) in fileDistances)
                 {
-                    Console.WriteLine($"  {Path.GetFileName(entry)}");
+                    Console.WriteLine($"  {distance} - {Path.GetFileName(refFile)}");
                 }
             }
+
+            // Map files to reference files
+            var mappings = new List<(string, string)>();
+            var unmapped = new List<string>();
+            foreach (var (mkvPath, fileDistances) in distances)
+            {
+                // First will be the lowest
+                var (refFile, distance) = fileDistances.First();
+                // TODO: Make min distance configurable
+                if (distance < 3 * numSubtitles)
+                {
+                    mappings.Add((mkvPath, refFile));
+                }
+                else
+                {
+                    unmapped.Add(mkvPath);
+                }
+            }
+
+            // Output mappings
+            Console.WriteLine("Results: ");
+            foreach (var (mkvPath, refFile) in mappings)
+            {
+                var fileName = Path.GetFileName(mkvPath);
+                var refFileName = Path.GetFileName(refFile);
+                Console.WriteLine($"  {fileName} -> {refFileName}");
+            }
+            if (unmapped.Count > 0)
+            {
+                Console.WriteLine("Unmapped mkv files: ");
+                foreach (var mkvPath in unmapped)
+                {
+                    var fileName = Path.GetFileName(mkvPath);
+                    Console.WriteLine($"  {fileName}");
+                }
+            }
+        }
+
+        static void PrintSubtitles(IEnumerable<(string, List<string>)> files)
+        {
+            foreach (var (file, subtitles) in files)
+            {
+                Console.WriteLine(Path.GetFileName(file));
+                foreach (var subtitle in subtitles)
+                {
+                    Console.WriteLine($"  \"{subtitle}\"");
+                }
+            }
+        }
+
+        static List<(string, string)> FlattenSubtitles(IEnumerable<(string, List<string>)> files)
+        {
+            var subtitles = new List<(string, string)>();
+            foreach (var (file, fileSubtitles) in files)
+            {
+                var subtitle = string.Join(' ', fileSubtitles);
+                subtitles.Add((file, subtitle));
+            }
+            return subtitles;
         }
 
         static ConcurrentBag<(string, List<string>)> ProcessReferencePath(string path, int numSubtitles)
