@@ -16,11 +16,14 @@ namespace showorder
                 if (!string.IsNullOrEmpty(chunk))
                 {
                     var parts = chunk.Split('\n', 3);
-                    var text = parts[2].Replace('\n', ' ');
-                    subtitles.Add(TextSanitizer.Sanitize(text));
-                    if (subtitles.Count >= numSubtitles)
+                    var text = TextSanitizer.Sanitize(parts[2].Replace('\n', ' '));
+                    if (!string.IsNullOrEmpty(text))
                     {
-                        return subtitles;
+                        subtitles.Add(text);
+                        if (subtitles.Count >= numSubtitles)
+                        {
+                            return subtitles;
+                        }
                     }
                 }
             }

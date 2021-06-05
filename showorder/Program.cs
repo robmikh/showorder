@@ -88,16 +88,7 @@ namespace showorder
             }
 
             // Output distances
-            Console.WriteLine("Distances: ");
-            foreach (var (mkvPath, fileDistances) in distances)
-            {
-                var fileName = Path.GetFileName(mkvPath);
-                Console.WriteLine($"{fileName} :");
-                foreach (var (refFile, distance) in fileDistances)
-                {
-                    Console.WriteLine($"  {distance} - {Path.GetFileName(refFile)}");
-                }
-            }
+            PrintDistances(distances);
 
             // Map files to reference files
             var mappings = new List<(string, string)>();
@@ -118,13 +109,12 @@ namespace showorder
             }
 
             // Output mappings
-            Console.WriteLine("Results: ");
-            foreach (var (mkvPath, refFile) in mappings)
-            {
-                var fileName = Path.GetFileName(mkvPath);
-                var refFileName = Path.GetFileName(refFile);
-                Console.WriteLine($"  {fileName} -> {refFileName}");
-            }
+            PrintMappings(mappings);
+            PrintUmapped(unmapped);
+        }
+
+        static void PrintUmapped(List<string> unmapped)
+        {
             if (unmapped.Count > 0)
             {
                 Console.WriteLine("Unmapped mkv files: ");
@@ -132,6 +122,31 @@ namespace showorder
                 {
                     var fileName = Path.GetFileName(mkvPath);
                     Console.WriteLine($"  {fileName}");
+                }
+            }
+        }
+
+        static void PrintMappings(IEnumerable<(string, string)> mappings)
+        {
+            Console.WriteLine("Results: ");
+            foreach (var (mkvPath, refFile) in mappings)
+            {
+                var fileName = Path.GetFileName(mkvPath);
+                var refFileName = Path.GetFileName(refFile);
+                Console.WriteLine($"  {fileName} -> {refFileName}");
+            }
+        }
+
+        static void PrintDistances(IDictionary<string, List<(string, int)>> distances)
+        {
+            Console.WriteLine("Distances: ");
+            foreach (var (mkvPath, fileDistances) in distances)
+            {
+                var fileName = Path.GetFileName(mkvPath);
+                Console.WriteLine($"{fileName} :");
+                foreach (var (refFile, distance) in fileDistances)
+                {
+                    Console.WriteLine($"  {distance} - {Path.GetFileName(refFile)}");
                 }
             }
         }
