@@ -187,6 +187,22 @@ namespace showorder
                 Console.Write("(High Confidence) ");
             }
             PrintFinalMapping(finalMapping);
+            Console.WriteLine("");
+            if (isHighConfidence)
+            {
+                PrintPowerShellRenameScript(finalMapping);
+            }
+        }
+
+        static void PrintPowerShellRenameScript(List<(string, string)> mapping)
+        {
+            Console.WriteLine("Rename script:");
+            foreach (var (file, refFile) in mapping)
+            {
+                var fileName = Path.GetFileName(file);
+                var refFileName = Path.GetFileName(refFile).Replace(".eng.", ".").Replace(".srt", ".mkv");
+                Console.WriteLine($"Rename-Item -Path \"{fileName}\" -NewName \"{refFileName}\"");
+            }
         }
 
         static void PrintFinalMapping(List<(string, string)> mapping)
