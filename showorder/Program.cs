@@ -4,6 +4,7 @@ using MinimumEditDistance;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -96,8 +97,14 @@ namespace showorder
             PrintDistances(distances);
 
             // Map files to reference files
+            // While we do this, we also want to know if a reference file
+            // is mapped more than once, and which reference files went
+            // unmapped.
             var mappings = new List<(string, string)>();
-            var unmapped = new List<string>();
+            var unmapped = new HashSet<string>();
+            var mappedRefFiles = new SeenData<string>();
+            var unmappedRefFiles = new HashSet<string>();
+            refSubtitles.ForEach((entry) => unmappedRefFiles.Add(entry.Item1));
             foreach (var (mkvPath, fileDistances) in distances)
             {
                 // First will be the lowest
@@ -106,6 +113,8 @@ namespace showorder
                 if (distance < 3 * (numSubtitles + 1))
                 {
                     mappings.Add((mkvPath, refFile));
+                    unmappedRefFiles.Remove(refFile);
+                    mappedRefFiles.Add(refFile);
                 }
                 else
                 {
@@ -113,12 +122,142 @@ namespace showorder
                 }
             }
 
+            // Find the closest mkv files for our unmapped reference files.
+            var closestToUnmappedRefFiles = new Dictionary<string, (string, int)>();
+            var stillUnmappedRefFiles = new List<string>();
+            foreach (var unmappedRefFile in unmappedRefFiles)
+            {
+                var closestMkvPath = string.Empty;
+                var closestDistance = int.MaxValue;
+                foreach (var (mkvPath, fileDistances) in distances)
+                {
+                    // TODO: What does it mean if the closest file is already mapped to
+                    //       something else?
+                    if (unmapped.Contains(mkvPath))
+                    {
+                        foreach (var (refFile, distance) in fileDistances)
+                        {
+                            if (refFile == unmappedRefFile)
+                            {
+                                if (distance < closestDistance)
+                                {
+                                    closestDistance = distance;
+                                    closestMkvPath = mkvPath;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(closestMkvPath))
+                {
+                    closestToUnmappedRefFiles.Add(unmappedRefFile, (closestMkvPath, closestDistance));
+                }
+                else
+                {
+                    stillUnmappedRefFiles.Add(unmappedRefFile);
+                }
+            }
+
+            // Generate a final mapping
+            var finalMapping = new List<(string, string)>(mappings.Count + closestToUnmappedRefFiles.Count);
+            finalMapping.AddRange(mappings);
+            foreach (var (refFile, (file, distance)) in closestToUnmappedRefFiles)
+            {
+                finalMapping.Add((file, refFile));
+            }
+            finalMapping.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+
+            // Check to see if we have high confidence the mapping is correct. High confidence means:
+            //   * No unmapped reference files
+            //   * Each reference file is mapped to only 1 other file
+            //   * Mkv files can still be unmapped (e.g. extras)
+            var isHighConfidence = IsMappingHighConfidence(finalMapping, stillUnmappedRefFiles);
+
             // Output mappings
             PrintMappings(mappings);
             PrintUmapped(unmapped);
+            PrintRefFileInfo(mappedRefFiles, unmappedRefFiles);
+            Console.WriteLine("");
+            PrintSecondTryMapping(closestToUnmappedRefFiles, stillUnmappedRefFiles);
+            Console.WriteLine("");
+            if (isHighConfidence)
+            {
+                Console.Write("(High Confidence) ");
+            }
+            PrintFinalMapping(finalMapping);
         }
 
-        static void PrintUmapped(List<string> unmapped)
+        static void PrintFinalMapping(List<(string, string)> mapping)
+        {
+            Console.WriteLine("Final mapping:");
+            foreach (var (file, refFile) in mapping)
+            {
+                var fileName = Path.GetFileName(file);
+                var refFileName = Path.GetFileName(refFile);
+                Console.WriteLine($"  {fileName} -> {refFileName}");
+            }
+        }
+
+        static bool IsMappingHighConfidence(List<(string, string)> mapping, List<string> stillUnmappedRefFiles)
+        {
+            if (stillUnmappedRefFiles.Count == 0)
+            {
+                var seenRefFiles = new SeenData<string>();
+                foreach (var (file, refFile) in mapping)
+                {
+                    seenRefFiles.Add(refFile);
+                }
+
+                foreach (var (_, count) in seenRefFiles.GetSortedList())
+                {
+                    if (count != 1)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+            return false;
+        }
+
+        static void PrintSecondTryMapping(Dictionary<string, (string, int)> closestToUnmappedRefFiles, List<String> stillUnmappedRefFiles)
+        {
+            Console.WriteLine("Closest mappings:");
+            foreach (var (refFile, (file, distance)) in closestToUnmappedRefFiles)
+            {
+                Console.WriteLine($"  {distance} - {Path.GetFileName(file)} -> {Path.GetFileName(refFile)}");
+            }
+            if (stillUnmappedRefFiles.Count > 0)
+            {
+                Console.WriteLine("Still unmapped reference files:");
+                foreach (var refFile in stillUnmappedRefFiles)
+                {
+                    Console.WriteLine($"  {Path.GetFileName(refFile)}");
+                }
+            }
+        }
+
+        static void PrintRefFileInfo(SeenData<string> mappedRefFiles, HashSet<string> unmappedRefFiles)
+        {
+            Console.WriteLine("Mapped reference files:");
+            foreach (var (refFile, count) in mappedRefFiles.GetSortedList())
+            {
+                Console.WriteLine($"  {count} - {Path.GetFileName(refFile)}");
+            }
+            if (unmappedRefFiles.Count > 0)
+            {
+                Console.WriteLine("Unmapped reference files:");
+                foreach (var refFile in unmappedRefFiles)
+                {
+                    Console.WriteLine($"  {Path.GetFileName(refFile)}");
+                }
+            }
+        }
+
+        static void PrintUmapped(HashSet<string> unmapped)
         {
             if (unmapped.Count > 0)
             {
