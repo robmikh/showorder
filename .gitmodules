@@ -1,6 +1,0 @@
-[submodule "deps/Matroska"]
-	path = deps/Matroska
-	url = https://github.com/robmikh/Matroska.git
-[submodule "deps/MinimumEditDistance"]
-	path = deps/MinimumEditDistance
-	url = https://github.com/robmikh/MinimumEditDistance.git
