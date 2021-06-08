@@ -1,0 +1,15 @@
+[package]
+name = "showorder"
+version = "0.1.0"
+authors = ["robmikh <rob.mikh@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+webm-iterable = "0.1.0"
+windows = "0.10.0"
+bindings = { path = "bindings" }
+byteorder = "1.4.3"
+nalgebra = "0.27.1"
+regex = "1.5.4"
+rayon = "1.5.1"
+levenshtein = "1.0.5"
