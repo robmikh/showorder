@@ -12,7 +12,26 @@ use self::image::ConvertedPaletteEntry;
 use self::parsing::PgsDeserializer;
 use self::types::{ObjectDef, PaletteDef, PaletteEntry, SegmentHeader, SegmentType};
 
+// This keeps parsing segments until the end of the data,
+// and will return the first bitmap it's able to construct.
+// 
+// WARNING: The bare minimum was implemented based on the
+//          behavior of a small set of test files. Over time
+//          this should more closely follow the spec.
+//          Currently likely to break;
 pub fn parse_segments(data: &[u8]) -> windows::Result<Option<SoftwareBitmap>> {
+    // The mkv spec (https://www.matroska.org/technical/subtitles.html) says
+    // the PGS segments can be found within the blocks. 
+    //
+    // From the spec:
+    // The specifications for the HDMV presentation graphics subtitle format
+    // (short: HDMV PGS) can be found in the document “Blu-ray Disc Read-Only
+    // Format; Part 3 — Audio Visual Basic Specifications” in section 9.14
+    // “HDMV graphics streams”.
+    //
+    // The blog post "Presentation Graphic Stream (SUP files) BluRay Subtitle Format" (http://blog.thescorpius.com/index.php/2017/07/15/presentation-graphic-stream-sup-files-bluray-subtitle-format/)
+    // describes the PGS segment data. However we don't have the first 10 bytes
+    // listed there (magic number, pts, dts).
     let mut reader = std::io::Cursor::new(data);
     let mut last_palette_data: Option<Vec<ConvertedPaletteEntry>> = None;
     while !reader.is_at_end() {
