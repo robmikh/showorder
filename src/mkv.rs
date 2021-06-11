@@ -90,7 +90,6 @@ fn find_subtitle_track_number_for_language<R: Read>(
             match spec_tag {
                 MatroskaSpec::TrackEntry => {
                     if let TagPosition::FullTag(_id, data) = &tag.tag {
-                        //println!("{:#?}", data);
                         if let TagData::Master(children) = data {
                             let is_subtitle_track = |tag: &(u64, TagData)| {
                                 if MatroskaSpec::get_tag_id(&MatroskaSpec::TrackType) == tag.0 {
@@ -106,7 +105,6 @@ fn find_subtitle_track_number_for_language<R: Read>(
                                 let mut language_matches = false;
                                 let mut pgs_track = false;
                                 for (id, data) in children {
-                                    //println!("  {}  {:?}  {:X?}", is_subtitle_track(child), spec.get_tag(child.id), child);
                                     if let Some((mkv_tag, _)) = MatroskaSpec::get_tag(*id) {
                                         match mkv_tag {
                                             MatroskaSpec::TrackNumber => {
@@ -145,7 +143,6 @@ fn find_subtitle_track_number_for_language<R: Read>(
                                 }
                             }
                         }
-                        println!("");
                     }
                 }
                 _ => {}
