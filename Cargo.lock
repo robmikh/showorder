@@ -95,9 +95,28 @@ dependencies = [
 
 [[package]]
 name = "ebml-iterable"
+version = "0.2.0"
+source = "git+https://github.com/robmikh/ebml-iterable?branch=main#7abfc18b4562a6f76bb403239143aaefa3671e6c"
+dependencies = [
+ "ebml-iterable-specification",
+ "ebml-iterable-specification-derive",
+]
+
+[[package]]
+name = "ebml-iterable-specification"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f918a54681acef19a4b7b4e1348183770c6d410333de77b8f7a848fd208504"
+source = "git+https://github.com/robmikh/ebml-iterable?branch=main#7abfc18b4562a6f76bb403239143aaefa3671e6c"
+
+[[package]]
+name = "ebml-iterable-specification-derive"
+version = "0.1.0"
+source = "git+https://github.com/robmikh/ebml-iterable?branch=main#7abfc18b4562a6f76bb403239143aaefa3671e6c"
+dependencies = [
+ "ebml-iterable-specification",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "either"
@@ -361,9 +380,8 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "webm-iterable"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20c00bb63548ed1106afb5e4b5a4b8d81dd3a44395e4221acf88413dfa9afbca"
+version = "0.2.0"
+source = "git+https://github.com/robmikh/webm-iterable?branch=main#e68cbd601811b097a3e541b07877106177f63296"
 dependencies = [
  "ebml-iterable",
 ]

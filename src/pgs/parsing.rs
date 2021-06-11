@@ -51,7 +51,7 @@ macro_rules! pgs_enum {
                 let value = reader.read_u8()?;
                 match value {
                     $( $value => Ok($name::$variant), )*
-                    _ => panic!(), // TODO: return error
+                    _ => panic!("Unknown value: 0x{:X}", value), // TODO: return error
                 }
             }
         }

@@ -416,3 +416,11 @@ fn print_powershell_rename_script(mapping: &[(String, String)]) {
         );
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn popeye_basic() -> windows::Result<()> {
+        
+    }
+}
