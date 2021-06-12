@@ -14,14 +14,14 @@ use self::types::{ObjectDef, PaletteDef, PaletteEntry, SegmentHeader, SegmentTyp
 
 // This keeps parsing segments until the end of the data,
 // and will return the first bitmap it's able to construct.
-// 
+//
 // WARNING: The bare minimum was implemented based on the
 //          behavior of a small set of test files. Over time
 //          this should more closely follow the spec.
 //          Currently likely to break;
 pub fn parse_segments(data: &[u8]) -> windows::Result<Option<SoftwareBitmap>> {
     // The mkv spec (https://www.matroska.org/technical/subtitles.html) says
-    // the PGS segments can be found within the blocks. 
+    // the PGS segments can be found within the blocks.
     //
     // From the spec:
     // The specifications for the HDMV presentation graphics subtitle format

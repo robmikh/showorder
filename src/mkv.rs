@@ -4,8 +4,8 @@ use bindings::Windows::{
     Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine,
 };
 use webm_iterable::{
-    matroska_spec::{Block, MatroskaSpec, EbmlSpecification},
-    tags::{TagPosition, TagData},
+    matroska_spec::{Block, EbmlSpecification, MatroskaSpec},
+    tags::{TagData, TagPosition},
     WebmIterator,
 };
 
@@ -82,7 +82,7 @@ pub fn load_first_n_english_subtitles<P: AsRef<Path>>(
 fn find_subtitle_track_number_for_language<R: Read>(
     iter: &mut WebmIterator<R>,
     language: &str,
-    language_ietf: &str
+    language_ietf: &str,
 ) -> Option<u64> {
     for tag in iter {
         let tag = tag.as_ref().unwrap();
@@ -99,7 +99,7 @@ fn find_subtitle_track_number_for_language<R: Read>(
                                 }
                                 false
                             };
-    
+
                             if children.iter().any(is_subtitle_track) {
                                 let mut track_number: Option<u64> = None;
                                 let mut language_matches = false;
@@ -137,7 +137,7 @@ fn find_subtitle_track_number_for_language<R: Read>(
                                         }
                                     }
                                 }
-    
+
                                 if language_matches && pgs_track {
                                     return track_number;
                                 }

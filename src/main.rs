@@ -53,29 +53,7 @@ fn main() -> windows::Result<()> {
 
     // Compare subtitles
     println!("Comparing subtitles...");
-    let mut distances = HashMap::<String, Vec<(String, usize)>>::new();
-    for (file, subtitle) in &subtitles {
-        let file_path = Path::new(file);
-        println!(
-            "  Inspecting \"{}\"",
-            file_path.file_name().unwrap().to_str().unwrap()
-        );
-        for (ref_file, ref_subtitle) in &ref_subtitles {
-            // Normalize to shortest
-            let length = subtitle.len().min(ref_subtitle.len());
-            let normalized_subtitle = &subtitle[0..length];
-            let normalized_ref_subtitle = &ref_subtitle[0..length];
-
-            let distance = levenshtein(normalized_subtitle, normalized_ref_subtitle);
-            let matches = distances.entry(file.clone()).or_insert(Vec::new());
-            matches.push((ref_file.clone(), distance));
-        }
-    }
-
-    // Sort distances
-    for (_, file_distances) in &mut distances {
-        file_distances.sort_by(|(_, distance1), (_, distance2)| distance1.cmp(distance2));
-    }
+    let distances = compute_distances(&&subtitles, &&ref_subtitles);
 
     // Output distances
     print_distances(&distances);
@@ -417,10 +395,100 @@ fn print_powershell_rename_script(mapping: &[(String, String)]) {
     }
 }
 
+fn compute_distances(
+    subtitles: &[(String, String)],
+    ref_subtitles: &[(String, String)],
+) -> HashMap<String, Vec<(String, usize)>> {
+    let mut distances = HashMap::<String, Vec<(String, usize)>>::new();
+    for (file, subtitle) in subtitles {
+        let file_path = Path::new(file);
+        println!(
+            "  Inspecting \"{}\"",
+            file_path.file_name().unwrap().to_str().unwrap()
+        );
+        for (ref_file, ref_subtitle) in ref_subtitles {
+            // Normalize to shortest
+            let length = subtitle.len().min(ref_subtitle.len());
+            let normalized_subtitle = &subtitle[0..length];
+            let normalized_ref_subtitle = &ref_subtitle[0..length];
+
+            let distance = levenshtein(normalized_subtitle, normalized_ref_subtitle);
+            let matches = distances.entry(file.clone()).or_insert(Vec::new());
+            matches.push((ref_file.clone(), distance));
+        }
+    }
+
+    // Sort distances
+    for (_, file_distances) in &mut distances {
+        file_distances.sort_by(|(_, distance1), (_, distance2)| distance1.cmp(distance2));
+    }
+
+    distances
+}
+
 #[cfg(test)]
 mod test {
+    use std::{collections::HashMap, path::Path};
+
+    use crate::{compute_distances, flatten_subtitles, process_input_path};
+
     #[test]
     fn popeye_basic() -> windows::Result<()> {
-        
+        let subtitles = process_input_path("data/popeye/mkv", 5)?;
+        let mut subtitles = flatten_subtitles(&subtitles);
+        assert_eq!(subtitles.len(), 4);
+        subtitles.sort_by(|(file1, _), (file2, _)| file1.cmp(file2));
+        let subtitles = subtitles
+            .iter()
+            .map(|(file, subtitle)| {
+                let path = Path::new(file);
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                (file_name, subtitle.as_str())
+            })
+            .collect::<Vec<_>>();
+        let mut iter = subtitles.iter();
+        assert_eq!(iter.next(), Some(&("Title T00-1.mkv", "oh oh wwhat happened ohh let me go let me go let me go nonono dont drop me now oh man the lifeboats")));
+        assert_eq!(iter.next(), Some(&("Title T01-2.mkv", "whos the most phenominal extra ordinary fellow yous sinbad the sailor how do you like that stooges on one of my travels i ran into this now there was a thrill id be sorry to miss")));
+        assert_eq!(iter.next(), Some(&("Title T02-3.mkv", "woah whats this hey let me down you big overgrown canary what are you doing taking me for a ride or something come back to me there you are with gravy")));
+        assert_eq!(iter.next(), Some(&("Title T03-4.mkv", "im sinbad the sailor so hearty and hale i live on an island on the back ofa whale its a whale of an island thats not a bad joke its lord and its master is this handsom bloke")));
+        Ok(())
+    }
+
+    #[test]
+    fn popeye_match() -> windows::Result<()> {
+        let num_subtitles = 5;
+        let subtitles = process_input_path("data/popeye/mkv", num_subtitles)?;
+        let subtitles = flatten_subtitles(&subtitles);
+        let ref_subtitles = process_input_path("data/popeye/srt", num_subtitles)?;
+        let ref_subtitles = flatten_subtitles(&ref_subtitles);
+
+        let distances = compute_distances(&subtitles, &ref_subtitles);
+        let closest: HashMap<_, _> = distances
+            .iter()
+            .map(|(file, distances)| {
+                let path = Path::new(file);
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                let ref_path = Path::new(&distances[0].0);
+                let ref_file_name = ref_path.file_name().unwrap().to_str().unwrap();
+                (file_name, ref_file_name)
+            })
+            .collect();
+
+        let expected: HashMap<_, _> = [
+            ("Title T00-1.mkv", "popeye p3.eng.srt"),
+            ("Title T01-2.mkv", "popeye p2.eng.srt"),
+            ("Title T02-3.mkv", "popeye p4.eng.srt"),
+            ("Title T03-4.mkv", "popeye p1.eng.srt"),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        for (actual_file, actual_ref_file) in closest {
+            let expected_value = expected.get(actual_file).unwrap();
+            assert_eq!(actual_ref_file, *expected_value);
+        }
+
+        Ok(())
     }
 }

@@ -1,0 +1,64 @@
+﻿1
+00:00:00,000 --> 00:00:04,000
+[barking and roaring]
+
+2
+00:00:13,000 --> 00:00:16,400
+<i>I'm Sinbad the sailor
+So hearty and hale</i>
+
+3
+00:00:16,600 --> 00:00:20,000
+<i>I live on an island
+On the back of a whale</i>
+
+4
+00:00:20,200 --> 00:00:21,600
+<i>It's a whale of an island</i>
+
+5
+00:00:21,624 --> 00:00:23,624
+That's not a bad joke
+
+6
+00:00:23,648 --> 00:00:27,048
+<i>Its lord and its master
+Is this handsom bloke</i>
+
+7
+00:00:28,000 --> 00:00:33,400
+<i>Who's the most remarkable
+Extraordinary fellow?</i>
+
+8
+00:00:34,224 --> 00:00:36,524
+<i>Sinbad the sailor!</i>
+
+9
+00:00:37,948 --> 00:00:40,348
+<i>I scare all creation on land or on sea</i>
+
+10
+00:00:40,772 --> 00:00:44,072
+<i>But talk about women
+They all fall for me</i>
+
+11
+00:00:44,296 --> 00:00:46,996
+<i>I take my adventures
+Wherever they're found</i>
+
+12
+00:00:47,020 --> 00:00:50,520
+<i>I don't wanna brag, folks
+But I've been around</i>
+
+13
+00:00:50,544 --> 00:00:56,044
+<i>Who's the most phenomenal
+Extra special kind of fellow?</i>
+
+14
+00:00:57,668 --> 00:01:00,268
+<i>Sinbad the sailor!</i>
+

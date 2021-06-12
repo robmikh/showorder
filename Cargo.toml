@@ -3,6 +3,9 @@ name = "showorder"
 version = "0.1.0"
 authors = ["robmikh <rob.mikh@outlook.com>"]
 edition = "2018"
+exclude = [
+    "data/*",
+]
 
 [dependencies]
 #webm-iterable = "0.1.0"
