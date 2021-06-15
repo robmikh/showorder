@@ -61,8 +61,12 @@ pub fn parse_segments(data: &[u8]) -> windows::Result<Option<SoftwareBitmap>> {
             SegmentType::ObjDataDef => {
                 let (object_def, color_data_lines) =
                     read_object_def_segment(&mut segment_data_reader).unwrap();
-                let bitmap = decode_image(&object_def, &color_data_lines, last_palette_data.as_ref().expect("Expected to have encountered a palette definition before an object definition."))?;
-                return Ok(Some(bitmap));
+                if let Some(palette_data) = last_palette_data.as_ref() {
+                    let bitmap = decode_image(&object_def, &color_data_lines, palette_data)?;
+                    return Ok(Some(bitmap));
+                } else {
+                    println!("Warning! Expected to have encountered a palette definition before an object definition. Skipping segment...");
+                }
             }
             _ => {}
         }

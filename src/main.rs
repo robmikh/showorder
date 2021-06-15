@@ -88,7 +88,13 @@ fn main() -> windows::Result<()> {
     if let Some(matches) = matches.subcommand_matches("match") {
         let mkv_path = matches.value_of("mkv path").unwrap();
         let ref_path = matches.value_of("reference path").unwrap();
-        match_subtitles(mkv_path, ref_path, num_subtitles, track_number, min_distance)?;
+        match_subtitles(
+            mkv_path,
+            ref_path,
+            num_subtitles,
+            track_number,
+            min_distance,
+        )?;
     } else if let Some(matches) = matches.subcommand_matches("dump") {
         let mkv_path = matches.value_of("mkv path").unwrap();
         let output_path = matches.value_of("output path").unwrap();
@@ -224,7 +230,7 @@ fn match_subtitles(
         } else {
             true
         };
-        
+
         if add {
             mappings.push((mkv_path.clone(), ref_file.clone()));
             let count = seen_ref_files.entry(ref_file).or_insert(0);
