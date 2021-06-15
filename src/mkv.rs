@@ -11,7 +11,7 @@ use webm_iterable::{
 
 use crate::{pgs::parse_segments, text::sanitize_text};
 
-struct SubtitleIterator<R: Read> {
+pub struct SubtitleIterator<R: Read> {
     track_number: u64,
     mkv_iter: WebmIterator<R>,
 }
@@ -30,6 +30,15 @@ impl<R: Read> SubtitleIterator<R> {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn new_from_track_number(source: R, track_number: u64) -> windows::Result<Self> {
+        let mkv_iter = WebmIterator::new(source, &[MatroskaSpec::TrackEntry]);
+
+        Ok(Self {
+            track_number,
+            mkv_iter,
+        })
     }
 }
 
@@ -66,9 +75,17 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
 pub fn load_first_n_english_subtitles<P: AsRef<Path>>(
     path: P,
     num_subtitles: usize,
+    track_number: Option<u64>,
 ) -> windows::Result<Option<Vec<String>>> {
     let mut file = File::open(&path).unwrap();
-    let iter = SubtitleIterator::new(&mut file, "eng", "en")?;
+    let iter = if let Some(track_number) = track_number {
+        Some(SubtitleIterator::new_from_track_number(
+            &mut file,
+            track_number,
+        )?)
+    } else {
+        SubtitleIterator::new(&mut file, "eng", "en")?
+    };
 
     let engine = OcrEngine::TryCreateFromLanguage(Language::CreateLanguage("en-US")?)?;
     if let Some(mut iter) = iter {
@@ -79,7 +96,7 @@ pub fn load_first_n_english_subtitles<P: AsRef<Path>>(
     }
 }
 
-fn find_subtitle_track_number_for_language<R: Read>(
+pub fn find_subtitle_track_number_for_language<R: Read>(
     iter: &mut WebmIterator<R>,
     language: &str,
     language_ietf: &str,

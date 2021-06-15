@@ -88,15 +88,16 @@ fn convert_palette_color(entry: &PaletteEntry) -> ConvertedPaletteEntry {
 
     static COLOR_CONVERSION_MATRIX: Matrix3x3 = Matrix3x3::new(
         // https://web.archive.org/web/20180421030430/http://www.equasys.de/colorconversion.html
-        //1.164, 0.000, 1.793, 1.164, -0.213, -0.533, 1.164, 2.112, 0.000,
+        1.164, 0.000, 1.793, 1.164, -0.213, -0.533, 1.164, 2.112,
+        0.000,
         // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdprfx/2e1618ed-60d6-4a64-aa5d-0608884861bb
-        1.0, 0.0, 1.402525, 1.0, -0.343730, -0.714401, 1.0, 1.769905, 0.000013,
+        //1.0, 0.0, 1.402525, 1.0, -0.343730, -0.714401, 1.0, 1.769905, 0.000013,
     );
 
     let values = Matrix3x1::new(
-        (entry.luminance - 16) as f32,
-        (entry.color_difference_blue - 128) as f32,
-        (entry.color_difference_red - 128) as f32,
+        (entry.luminance.wrapping_sub(16)) as f32,
+        (entry.color_difference_blue.wrapping_sub(128)) as f32,
+        (entry.color_difference_red.wrapping_sub(128)) as f32,
     );
 
     let rgb_values: Matrix3x1 = COLOR_CONVERSION_MATRIX * values;

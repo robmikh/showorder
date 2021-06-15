@@ -3,10 +3,13 @@ fn main() {
         Windows::Foundation::*,
         Windows::UI::Color,
         Windows::Graphics::Imaging::{
-            SoftwareBitmap, BitmapPixelFormat
+            SoftwareBitmap, BitmapPixelFormat, BitmapEncoder,
+        },
+        Windows::Storage::{
+            StorageFolder, StorageFile, CreationCollisionOption, FileAccessMode,
         },
         Windows::Storage::Streams::{
-            IBuffer, Buffer,
+            IBuffer, Buffer, IRandomAccessStream,
         },
         Windows::Media::Ocr::{
             OcrEngine, OcrResult,

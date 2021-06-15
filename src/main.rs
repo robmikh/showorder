@@ -5,29 +5,177 @@ mod text;
 
 use std::{
     collections::{HashMap, HashSet},
+    fs::File,
     path::Path,
 };
 
+use bindings::Windows::{
+    Graphics::Imaging::BitmapEncoder,
+    Storage::{CreationCollisionOption, FileAccessMode, StorageFolder},
+};
+use clap::{App, Arg, SubCommand};
 use levenshtein::levenshtein;
+use mkv::{find_subtitle_track_number_for_language, SubtitleIterator};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use webm_iterable::{matroska_spec::MatroskaSpec, WebmIterator};
 
 use crate::mkv::load_first_n_english_subtitles;
 
 fn main() -> windows::Result<()> {
-    windows::initialize_sta()?;
+    let matches = App::new("showorder")
+        .arg(
+            Arg::with_name("max-count")
+                .short("n")
+                .long("max-count")
+                .takes_value(true)
+                .default_value("5"),
+        )
+        .arg(
+            Arg::with_name("track")
+                .short("t")
+                .long("track")
+                .takes_value(true),
+        )
+        .subcommand(
+            SubCommand::with_name("list-tracks")
+                .arg(Arg::with_name("mkv path").index(1).required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("list").arg(Arg::with_name("mkv path").index(1).required(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("dump")
+                .arg(
+                    Arg::with_name("mkv path")
+                        .index(1)
+                        .requires("output path")
+                        .required(true),
+                )
+                .arg(Arg::with_name("output path").index(2)),
+        )
+        .subcommand(
+            SubCommand::with_name("match")
+                .arg(
+                    Arg::with_name("mkv path")
+                        .index(1)
+                        .requires("reference path")
+                        .required(true),
+                )
+                .arg(Arg::with_name("reference path").index(2)),
+        )
+        .get_matches();
 
-    let args: Vec<_> = std::env::args().collect();
-    if args.len() <= 1 {
-        panic!("Invalid number of args!");
+    windows::initialize_mta()?;
+
+    let num_subtitles = usize::from_str_radix(matches.value_of("max-count").unwrap(), 10).unwrap();
+    let track_number = if let Some(track_str) = matches.value_of("track") {
+        Some(u64::from_str_radix(track_str, 10).unwrap())
+    } else {
+        None
+    };
+
+    if let Some(matches) = matches.subcommand_matches("match") {
+        let mkv_path = matches.value_of("mkv path").unwrap();
+        let ref_path = matches.value_of("reference path").unwrap();
+        match_subtitles(mkv_path, ref_path, num_subtitles, track_number)?;
+    } else if let Some(matches) = matches.subcommand_matches("dump") {
+        let mkv_path = matches.value_of("mkv path").unwrap();
+        let output_path = matches.value_of("output path").unwrap();
+        dump_subtitles(mkv_path, output_path, num_subtitles, track_number)?;
+    } else if let Some(matches) = matches.subcommand_matches("list") {
+        let mkv_path = matches.value_of("mkv path").unwrap();
+        list_subtitles(mkv_path, num_subtitles, track_number)?;
+    } else if let Some(matches) = matches.subcommand_matches("list-tracks") {
+        let mkv_path = matches.value_of("mkv path").unwrap();
+        list_tracks(mkv_path)?;
+    } else {
+        println!("Invalid input. Use --help to display help.")
     }
-    let mkv_path = &args[1];
 
-    // TODO: Make num subtitles configurable
-    let num_subtitles = 5;
+    Ok(())
+}
 
+fn list_tracks(mkv_path: &str) -> windows::Result<()> {
+    let mut file = File::open(mkv_path).unwrap();
+    let mut mkv_iter = WebmIterator::new(&mut file, &[MatroskaSpec::TrackEntry]);
+    println!("Found English subtitle tracks:");
+    while let Some(track_number) =
+        find_subtitle_track_number_for_language(&mut mkv_iter, "eng", "en")
+    {
+        println!("  {}", track_number);
+    }
+    Ok(())
+}
+
+fn dump_subtitles(
+    mkv_path: &str,
+    output_path: &str,
+    num_subtitles: usize,
+    track_number: Option<u64>,
+) -> windows::Result<()> {
+    let mut file = File::open(mkv_path).unwrap();
+    let iter = if let Some(track_number) = track_number {
+        Some(SubtitleIterator::new_from_track_number(
+            &mut file,
+            track_number,
+        )?)
+    } else {
+        SubtitleIterator::new(&mut file, "eng", "en")?
+    };
+    if let Some(iter) = iter {
+        let path = Path::new(output_path).canonicalize().unwrap();
+        let path = path.to_str().unwrap();
+        let path = path.replace("\\\\?\\", "");
+        let path = if path.starts_with("UNC") {
+            path.replacen("UNC", "\\", 1)
+        } else {
+            path
+        };
+        let folder = StorageFolder::GetFolderFromPathAsync(path)?.get()?;
+        for (i, bitmap) in iter.enumerate() {
+            let file = folder
+                .CreateFileAsync(
+                    format!("{}.png", i),
+                    CreationCollisionOption::ReplaceExisting,
+                )?
+                .get()?;
+            let stream = file.OpenAsync(FileAccessMode::ReadWrite)?.get()?;
+            let encoder =
+                BitmapEncoder::CreateAsync(BitmapEncoder::PngEncoderId()?, stream)?.get()?;
+            encoder.SetSoftwareBitmap(bitmap)?;
+            encoder.FlushAsync()?.get()?;
+
+            if i >= num_subtitles {
+                break;
+            }
+        }
+    } else {
+        println!("No English subtitles found!");
+    }
+    Ok(())
+}
+
+fn list_subtitles(
+    mkv_path: &str,
+    num_subtitles: usize,
+    track_number: Option<u64>,
+) -> windows::Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from mkv files...");
-    let files = process_input_path(&mkv_path, num_subtitles)?;
+    let files = process_input_path(&mkv_path, num_subtitles, track_number)?;
+    print_subtitles(&files);
+    Ok(())
+}
+
+fn match_subtitles(
+    mkv_path: &str,
+    ref_path: &str,
+    num_subtitles: usize,
+    track_number: Option<u64>,
+) -> windows::Result<()> {
+    // Collect subtitles from the file(s)
+    println!("Loading subtitles from mkv files...");
+    let files = process_input_path(&mkv_path, num_subtitles, track_number)?;
 
     // If we couldn't find any subtitles, exit
     if files.is_empty() {
@@ -35,17 +183,9 @@ fn main() -> windows::Result<()> {
         return Ok(());
     }
 
-    // If we have a second param, use it to compare the subtitles. Otherwise,
-    // print the summary and complete.
-    if args.len() <= 2 {
-        print_subtitles(&files);
-        return Ok(());
-    }
-    let srt_path = &args[2];
-
     // Load reference data
     println!("Loading reference data...");
-    let ref_files = process_reference_path(&srt_path, num_subtitles)?;
+    let ref_files = process_reference_path(&ref_path, num_subtitles)?;
 
     // Flatten our data
     let subtitles = flatten_subtitles(&files);
@@ -154,6 +294,7 @@ fn main() -> windows::Result<()> {
 fn process_input_path<P: AsRef<Path>>(
     path: P,
     num_subtitles: usize,
+    track_number: Option<u64>,
 ) -> windows::Result<Vec<(String, Vec<String>)>> {
     let path = path.as_ref();
     let mut result = Vec::new();
@@ -169,7 +310,8 @@ fn process_input_path<P: AsRef<Path>>(
                 if let Some(ext) = path.extension() {
                     if ext == "mkv" {
                         if let Some(subtitles) =
-                            load_first_n_english_subtitles(&path, num_subtitles).unwrap()
+                            load_first_n_english_subtitles(&path, num_subtitles, track_number)
+                                .unwrap()
                         {
                             // Sometimes there's a subtitle track with no subtitles in it...
                             if !subtitles.is_empty() {
@@ -187,7 +329,7 @@ fn process_input_path<P: AsRef<Path>>(
         if let Some(ext) = path.extension() {
             if ext == "mkv" {
                 if let Some(subtitles) =
-                    load_first_n_english_subtitles(&path, num_subtitles).unwrap()
+                    load_first_n_english_subtitles(&path, num_subtitles, track_number).unwrap()
                 {
                     // Sometimes there's a subtitle track with no subtitles in it...
                     if !subtitles.is_empty() {
@@ -430,11 +572,11 @@ fn compute_distances(
 mod test {
     use std::{collections::HashMap, path::Path};
 
-    use crate::{compute_distances, flatten_subtitles, process_input_path};
+    use crate::{compute_distances, flatten_subtitles, process_input_path, process_reference_path};
 
     #[test]
     fn popeye_basic() -> windows::Result<()> {
-        let subtitles = process_input_path("data/popeye/mkv", 5)?;
+        let subtitles = process_input_path("data/popeye/mkv", 5, None)?;
         let mut subtitles = flatten_subtitles(&subtitles);
         assert_eq!(subtitles.len(), 4);
         subtitles.sort_by(|(file1, _), (file2, _)| file1.cmp(file2));
@@ -457,9 +599,9 @@ mod test {
     #[test]
     fn popeye_match() -> windows::Result<()> {
         let num_subtitles = 5;
-        let subtitles = process_input_path("data/popeye/mkv", num_subtitles)?;
+        let subtitles = process_input_path("data/popeye/mkv", num_subtitles, None)?;
         let subtitles = flatten_subtitles(&subtitles);
-        let ref_subtitles = process_input_path("data/popeye/srt", num_subtitles)?;
+        let ref_subtitles = process_reference_path("data/popeye/srt", num_subtitles)?;
         let ref_subtitles = flatten_subtitles(&ref_subtitles);
 
         let distances = compute_distances(&subtitles, &ref_subtitles);
