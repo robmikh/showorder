@@ -1,4 +1,4 @@
-static BANNED_WORDS: [&'static str; 3] = ["caption", "subtitle", "subbed"];
+static BANNED_WORDS: [&'static str; 6] = ["caption", "subtitle", "subbed", "corrections by", "corrected by", "correction by"];
 
 trait ContainsAny {
     fn contains_any(&self, substrings: &[&str]) -> bool;
@@ -51,6 +51,7 @@ pub fn sanitize_text(text: &str) -> String {
     lowered
         .regex_remove(r"<.*?>")
         .regex_remove(r"\[.*?\]")
+        .regex_remove(r"\(.*?\)")
         .regex_remove(r"[A-z]+:")
         .remove_punctuation()
         .trim()

@@ -17,7 +17,7 @@ use clap::{App, Arg, SubCommand};
 use levenshtein::levenshtein;
 use mkv::{find_subtitle_track_number_for_language, SubtitleIterator};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use webm_iterable::{matroska_spec::MatroskaSpec, WebmIterator};
+use webm_iterable::{WebmIterator, matroska_spec::MatroskaSpec};
 
 use crate::mkv::load_first_n_english_subtitles;
 
@@ -47,7 +47,9 @@ fn main() -> windows::Result<()> {
                 .arg(Arg::with_name("mkv path").index(1).required(true)),
         )
         .subcommand(
-            SubCommand::with_name("list").arg(Arg::with_name("mkv path").index(1).required(true)),
+            SubCommand::with_name("list")
+                .arg(Arg::with_name("file type").index(1).required(true))
+                .arg(Arg::with_name("input path").index(2).required(true)),
         )
         .subcommand(
             SubCommand::with_name("dump")
@@ -100,8 +102,17 @@ fn main() -> windows::Result<()> {
         let output_path = matches.value_of("output path").unwrap();
         dump_subtitles(mkv_path, output_path, num_subtitles, track_number)?;
     } else if let Some(matches) = matches.subcommand_matches("list") {
-        let mkv_path = matches.value_of("mkv path").unwrap();
-        list_subtitles(mkv_path, num_subtitles, track_number)?;
+        let file_type = matches.value_of("file type").unwrap().to_lowercase();
+        let input_path = matches.value_of("input path").unwrap();
+        match file_type.as_str() {
+            "mkv" => {
+                list_mkv_subtitles(input_path, num_subtitles, track_number)?;
+            }
+            "srt" => {
+                list_srt_subtitles(input_path, num_subtitles)?;
+            }
+            _ => panic!("Unknown file type")
+        }
     } else if let Some(matches) = matches.subcommand_matches("list-tracks") {
         let mkv_path = matches.value_of("mkv path").unwrap();
         list_tracks(mkv_path)?;
@@ -130,7 +141,7 @@ fn dump_subtitles(
     num_subtitles: usize,
     track_number: Option<u64>,
 ) -> windows::Result<()> {
-    let mut file = File::open(mkv_path).unwrap();
+    let mut file = File::open(mkv_path).expect(&format!("Could not read from \"{}\"", mkv_path));
     let iter = if let Some(track_number) = track_number {
         Some(SubtitleIterator::new_from_track_number(
             &mut file,
@@ -172,7 +183,7 @@ fn dump_subtitles(
     Ok(())
 }
 
-fn list_subtitles(
+fn list_mkv_subtitles(
     mkv_path: &str,
     num_subtitles: usize,
     track_number: Option<u64>,
@@ -180,6 +191,17 @@ fn list_subtitles(
     // Collect subtitles from the file(s)
     println!("Loading subtitles from mkv files...");
     let files = process_input_path(&mkv_path, num_subtitles, track_number)?;
+    print_subtitles(&files);
+    Ok(())
+}
+
+fn list_srt_subtitles(
+    srt_path: &str,
+    num_subtitles: usize,
+) -> windows::Result<()> {
+    // Collect subtitles from the file(s)
+    println!("Loading subtitles from srt files...");
+    let files = process_reference_path(&srt_path, num_subtitles)?;
     print_subtitles(&files);
     Ok(())
 }
@@ -439,16 +461,19 @@ fn print_powershell_rename_script(mapping: &[(String, String)]) {
         let mkv_path = Path::new(mkv_path);
         let ref_path = Path::new(ref_file);
         let mkv_file_name = mkv_path.file_name().unwrap().to_str().unwrap();
-        let ref_file_stem = ref_path
+        let mut ref_file_name = ref_path
             .file_stem()
             .unwrap()
             .to_str()
             .unwrap()
             .replace(".eng", "");
-        println!(
-            "Rename-Item -Path \"{}\" -NewName \"{}.mkv\"",
-            mkv_file_name, ref_file_stem
-        );
+        ref_file_name.push_str(".mkv");
+        if mkv_file_name != ref_file_name {
+            println!(
+                "Rename-Item -Path \"{}\" -NewName \"{}\"",
+                mkv_file_name, ref_file_name
+            );
+        }
     }
 }
 
