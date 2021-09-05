@@ -18,7 +18,7 @@ use self::types::{ObjectDef, PaletteDef, PaletteEntry, SegmentHeader, SegmentTyp
 // WARNING: The bare minimum was implemented based on the
 //          behavior of a small set of test files. Over time
 //          this should more closely follow the spec.
-//          Currently likely to break;
+//          Currently likely to break.
 pub fn parse_segments(data: &[u8]) -> windows::Result<Option<SoftwareBitmap>> {
     // The mkv spec (https://www.matroska.org/technical/subtitles.html) says
     // the PGS segments can be found within the blocks.

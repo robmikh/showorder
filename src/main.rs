@@ -15,11 +15,9 @@ use bindings::Windows::{
 };
 use clap::{App, Arg, SubCommand};
 use levenshtein::levenshtein;
-use mkv::{find_subtitle_track_number_for_language, SubtitleIterator};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use webm_iterable::{WebmIterator, matroska_spec::MatroskaSpec};
 
-use crate::mkv::load_first_n_english_subtitles;
+use crate::mkv::{KnownLanguage, MkvFile, load_first_n_english_subtitles};
 
 fn main() -> windows::Result<()> {
     let matches = App::new("showorder")
@@ -124,13 +122,11 @@ fn main() -> windows::Result<()> {
 }
 
 fn list_tracks(mkv_path: &str) -> windows::Result<()> {
-    let mut file = File::open(mkv_path).unwrap();
-    let mut mkv_iter = WebmIterator::new(&mut file, &[MatroskaSpec::TrackEntry]);
-    println!("Found English subtitle tracks:");
-    while let Some(track_number) =
-        find_subtitle_track_number_for_language(&mut mkv_iter, "eng", "en")
-    {
-        println!("  {}", track_number);
+    let file = File::open(mkv_path).unwrap();
+    let mkv = MkvFile::new(file);
+    println!("Found subtitle tracks:");
+    for track_info in mkv.tracks() {
+        println!("  {} - {} ({})", track_info.track_number, track_info.language.to_string(), track_info.encoding);
     }
     Ok(())
 }
@@ -141,14 +137,12 @@ fn dump_subtitles(
     num_subtitles: usize,
     track_number: Option<u64>,
 ) -> windows::Result<()> {
-    let mut file = File::open(mkv_path).expect(&format!("Could not read from \"{}\"", mkv_path));
+    let file = File::open(mkv_path).expect(&format!("Could not read from \"{}\"", mkv_path));
+    let mkv = MkvFile::new(file);
     let iter = if let Some(track_number) = track_number {
-        Some(SubtitleIterator::new_from_track_number(
-            &mut file,
-            track_number,
-        )?)
+        mkv.subtitle_iter_from_track_number(track_number)?
     } else {
-        SubtitleIterator::new(&mut file, "eng", "en")?
+        mkv.subtitle_iter(KnownLanguage::English)?
     };
     if let Some(iter) = iter {
         let path = Path::new(output_path).canonicalize().unwrap();
