@@ -126,7 +126,7 @@ fn list_tracks(mkv_path: &str) -> windows::Result<()> {
     let mkv = MkvFile::new(file);
     println!("Found subtitle tracks:");
     for track_info in mkv.tracks() {
-        println!("  {} - {} ({})", track_info.track_number, track_info.language.to_string(), track_info.encoding);
+        println!("  {} - {} ({})", track_info.track_number, track_info.language.to_string(), track_info.encoding.to_string());
     }
     Ok(())
 }

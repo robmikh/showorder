@@ -9,7 +9,7 @@ use webm_iterable::{
     WebmIterator,
 };
 
-use crate::{pgs::parse_segments, text::sanitize_text};
+use crate::{pgs, text::sanitize_text};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum KnownLanguage {
@@ -40,10 +40,35 @@ impl KnownLanguage {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum KnownEncoding {
+    PGS,
+    VOB,
+    Unknown(String),
+}
+
+impl KnownEncoding {
+    pub fn from_tag(tag: &str) -> KnownEncoding {
+        match tag {
+            "S_HDMV/PGS" => KnownEncoding::PGS,
+            "S_VOBSUB" => KnownEncoding::VOB,
+            _ => KnownEncoding::Unknown(tag.to_owned()),
+        }
+    }
+
+    pub fn to_string(&self) -> &str {
+        match self {
+            KnownEncoding::PGS => "S_HDMV/PGS",
+            KnownEncoding::VOB => "S_VOBSUB",
+            KnownEncoding::Unknown(value) => value.as_str(),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct TrackInfo {
     pub track_number: u64,
-    pub encoding: String,
+    pub encoding: KnownEncoding,
     pub language: KnownLanguage,
 }
 
@@ -115,6 +140,7 @@ impl<R: Read> MkvFile<R> {
                                         if let Some(language) = language {
                                             let language = KnownLanguage::from_tag(&language);
                                             if let Some(encoding) = encoding {
+                                                let encoding = KnownEncoding::from_tag(&encoding);
                                                 let track_info = TrackInfo {
                                                     track_number,
                                                     encoding,
@@ -181,21 +207,21 @@ impl<R: Read> MkvFile<R> {
     }
 
     fn subtitle_iter_from_track_info(self, track_info: TrackInfo) -> windows::Result<Option<SubtitleIterator<R>>> {
-        // TODO: Push the encoding into the iterator
-        if track_info.encoding == "S_HDMV/PGS" {
-            let subtitle_iter = SubtitleIterator {
-                track_number: track_info.track_number,
-                mkv_iter: self.mkv_iter,
-            };
-            Ok(Some(subtitle_iter))
-        } else {
-            Ok(None)
+        match track_info.encoding {
+            KnownEncoding::PGS => {
+                let subtitle_iter = SubtitleIterator {
+                    track_info,
+                    mkv_iter: self.mkv_iter,
+                };
+                Ok(Some(subtitle_iter))
+            },
+            _ => Ok(None),
         }
     }
 }
 
 pub struct SubtitleIterator<R: Read> {
-    track_number: u64,
+    track_info: TrackInfo,
     mkv_iter: WebmIterator<R>,
 }
 
@@ -210,11 +236,14 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
                     MatroskaSpec::Block | MatroskaSpec::SimpleBlock => {
                         if let TagPosition::FullTag(_id, tag) = tag.tag.clone() {
                             let block: Block = tag.try_into().unwrap();
-                            if block.track == self.track_number {
+                            if block.track == self.track_info.track_number {
                                 // We don't handle lacing
                                 assert_eq!(block.lacing, None);
                                 // Decode our bitmap
-                                let bitmap = parse_segments(&block.payload).unwrap();
+                                let bitmap = match self.track_info.encoding {
+                                    KnownEncoding::PGS => pgs::parse_segments(&block.payload).unwrap(),
+                                    _ => None,
+                                };
                                 if let Some(bitmap) = bitmap {
                                     return Some(bitmap);
                                 }
