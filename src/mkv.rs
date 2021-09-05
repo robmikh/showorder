@@ -305,7 +305,10 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
     fn next(&mut self) -> Option<Self::Item> {
         for block in &mut self.block_iter {
             assert_eq!(block.track, self.track_info.track_number);
-            return decode_bitmap(&block, &self.track_info).unwrap();
+            let bitmap = decode_bitmap(&block, &self.track_info).unwrap();
+            if bitmap.is_some() {
+                return bitmap;
+            }
         }
         None
     }
@@ -317,7 +320,7 @@ pub fn decode_bitmap(block: &Block, track_info: &TrackInfo) -> windows::Result<O
 
     let bitmap = match track_info.encoding {
         KnownEncoding::PGS => {
-            pgs::parse_segments(&block.payload).unwrap()
+            pgs::parse_segments(&block.payload)?
         }
         _ => None,
     };
