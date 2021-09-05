@@ -216,26 +216,62 @@ impl<R: Read> MkvFile<R> {
         self,
         track_info: TrackInfo,
     ) -> windows::Result<Option<SubtitleIterator<R>>> {
+        let track_number = track_info.track_number;
         match track_info.encoding {
             KnownEncoding::PGS => {
                 let subtitle_iter = SubtitleIterator {
                     track_info,
-                    mkv_iter: self.mkv_iter,
+                    block_iter: BlockIterator::from_webm(track_number, self.mkv_iter),
                 };
                 Ok(Some(subtitle_iter))
             }
             _ => Ok(None),
         }
     }
+
+    pub fn block_iter(
+        self,
+        language: KnownLanguage,
+    ) -> windows::Result<Option<BlockIterator<R>>> {
+        // Find a suitable track
+        let mut track = None;
+        for track_info in &self.track_infos {
+            if track_info.language == language {
+                track = Some(track_info.clone());
+            }
+        }
+        if let Some(track) = track {
+            Ok(Some(self.block_iter_from_track_info(track)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn block_iter_from_track_info(
+        self,
+        track_info: TrackInfo,
+    ) -> windows::Result<BlockIterator<R>> {
+        let track_number = track_info.track_number;
+        Ok(BlockIterator::from_webm(track_number, self.mkv_iter))
+    }
 }
 
-pub struct SubtitleIterator<R: Read> {
-    track_info: TrackInfo,
+pub struct BlockIterator<R: Read> {
+    track_number: u64,
     mkv_iter: WebmIterator<R>,
 }
 
-impl<R: Read> Iterator for SubtitleIterator<R> {
-    type Item = SoftwareBitmap;
+impl<R: Read> BlockIterator<R> {
+    pub fn from_webm(track_number: u64, mkv_iter: WebmIterator<R>) -> Self {
+        Self {
+            track_number,
+            mkv_iter,
+        }
+    }
+}
+
+impl<R: Read> Iterator for BlockIterator<R> {
+    type Item = Block;
 
     fn next(&mut self) -> Option<Self::Item> {
         for tag in &mut self.mkv_iter {
@@ -245,19 +281,8 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
                     MatroskaSpec::Block | MatroskaSpec::SimpleBlock => {
                         if let TagPosition::FullTag(_id, tag) = tag.tag.clone() {
                             let block: Block = tag.try_into().unwrap();
-                            if block.track == self.track_info.track_number {
-                                // We don't handle lacing
-                                assert_eq!(block.lacing, None);
-                                // Decode our bitmap
-                                let bitmap = match self.track_info.encoding {
-                                    KnownEncoding::PGS => {
-                                        pgs::parse_segments(&block.payload).unwrap()
-                                    }
-                                    _ => None,
-                                };
-                                if let Some(bitmap) = bitmap {
-                                    return Some(bitmap);
-                                }
+                            if block.track == self.track_number {
+                                return Some(block)
                             }
                         }
                     }
@@ -267,6 +292,36 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
         }
         None
     }
+}
+
+pub struct SubtitleIterator<R: Read> {
+    track_info: TrackInfo,
+    block_iter: BlockIterator<R>,
+}
+
+impl<R: Read> Iterator for SubtitleIterator<R> {
+    type Item = SoftwareBitmap;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for block in &mut self.block_iter {
+            assert_eq!(block.track, self.track_info.track_number);
+            return decode_bitmap(&block, &self.track_info).unwrap();
+        }
+        None
+    }
+}
+
+pub fn decode_bitmap(block: &Block, track_info: &TrackInfo) -> windows::Result<Option<SoftwareBitmap>> {
+    // We don't handle lacing
+    assert_eq!(block.lacing, None);
+
+    let bitmap = match track_info.encoding {
+        KnownEncoding::PGS => {
+            pgs::parse_segments(&block.payload).unwrap()
+        }
+        _ => None,
+    };
+    Ok(bitmap)
 }
 
 pub fn load_first_n_english_subtitles<P: AsRef<Path>>(
@@ -334,4 +389,25 @@ fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Resul
         }
     }
     Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs::File, path::Path};
+
+    use super::{KnownLanguage, MkvFile};
+
+    #[test]
+    fn experiment() -> windows::Result<()> {
+        let path = r#"output/title_t00.mkv"#;
+        let file = File::open(path).unwrap();
+        let mkv = MkvFile::new(file);
+        let block_iter = mkv.block_iter(KnownLanguage::English)?.unwrap();
+        let mut path = Path::new("output/vob/something").to_owned();
+        for (i, block) in block_iter.enumerate() {
+            path.set_file_name(&format!("{}.bin", i));
+            std::fs::write(&path, block.payload).unwrap();
+        }
+        Ok(())
+    }
 }
