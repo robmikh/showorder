@@ -17,7 +17,7 @@ use clap::{App, Arg, SubCommand};
 use levenshtein::levenshtein;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use crate::mkv::{KnownLanguage, MkvFile, load_first_n_english_subtitles};
+use crate::mkv::{load_first_n_english_subtitles, KnownLanguage, MkvFile};
 
 fn main() -> windows::Result<()> {
     let matches = App::new("showorder")
@@ -109,7 +109,7 @@ fn main() -> windows::Result<()> {
             "srt" => {
                 list_srt_subtitles(input_path, num_subtitles)?;
             }
-            _ => panic!("Unknown file type")
+            _ => panic!("Unknown file type"),
         }
     } else if let Some(matches) = matches.subcommand_matches("list-tracks") {
         let mkv_path = matches.value_of("mkv path").unwrap();
@@ -126,7 +126,12 @@ fn list_tracks(mkv_path: &str) -> windows::Result<()> {
     let mkv = MkvFile::new(file);
     println!("Found subtitle tracks:");
     for track_info in mkv.tracks() {
-        println!("  {} - {} ({})", track_info.track_number, track_info.language.to_string(), track_info.encoding.to_string());
+        println!(
+            "  {} - {} ({})",
+            track_info.track_number,
+            track_info.language.to_string(),
+            track_info.encoding.to_string()
+        );
     }
     Ok(())
 }
@@ -189,10 +194,7 @@ fn list_mkv_subtitles(
     Ok(())
 }
 
-fn list_srt_subtitles(
-    srt_path: &str,
-    num_subtitles: usize,
-) -> windows::Result<()> {
+fn list_srt_subtitles(srt_path: &str, num_subtitles: usize) -> windows::Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from srt files...");
     let files = process_reference_path(&srt_path, num_subtitles)?;

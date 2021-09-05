@@ -1,4 +1,11 @@
-static BANNED_WORDS: [&'static str; 6] = ["caption", "subtitle", "subbed", "corrections by", "corrected by", "correction by"];
+static BANNED_WORDS: [&'static str; 6] = [
+    "caption",
+    "subtitle",
+    "subbed",
+    "corrections by",
+    "corrected by",
+    "correction by",
+];
 
 trait ContainsAny {
     fn contains_any(&self, substrings: &[&str]) -> bool;

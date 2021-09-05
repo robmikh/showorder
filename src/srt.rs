@@ -4,7 +4,8 @@ use crate::text::sanitize_text;
 
 pub fn parse_n_subtitles<P: AsRef<Path>>(path: P, num_subtitles: usize) -> Vec<String> {
     let path = path.as_ref();
-    let raw_data = std::fs::read(path).expect(&format!("Could not read from \"{}\"", path.display()));
+    let raw_data =
+        std::fs::read(path).expect(&format!("Could not read from \"{}\"", path.display()));
     let data = String::from_utf8_lossy(&raw_data);
     let data = data.replace("\r\n", "\n");
     let chunks = data.split("\n\n");

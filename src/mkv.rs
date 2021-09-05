@@ -14,7 +14,7 @@ use crate::{pgs, text::sanitize_text};
 #[derive(Debug, PartialEq, Clone)]
 pub enum KnownLanguage {
     English,
-    Unknown(String)
+    Unknown(String),
 }
 
 impl KnownLanguage {
@@ -28,7 +28,7 @@ impl KnownLanguage {
     pub fn create_winrt_language(&self) -> windows::Result<Option<Language>> {
         match self {
             KnownLanguage::English => Ok(Some(Language::CreateLanguage("en-US")?)),
-            _ => Ok(None)
+            _ => Ok(None),
         }
     }
 
@@ -99,7 +99,7 @@ impl<R: Read> MkvFile<R> {
                                     }
                                     false
                                 };
-    
+
                                 if children.iter().any(is_subtitle_track) {
                                     let mut track_number: Option<u64> = None;
                                     let mut language: Option<String> = None;
@@ -176,7 +176,10 @@ impl<R: Read> MkvFile<R> {
         &self.track_infos
     }
 
-    pub fn subtitle_iter(self, language: KnownLanguage) -> windows::Result<Option<SubtitleIterator<R>>> {
+    pub fn subtitle_iter(
+        self,
+        language: KnownLanguage,
+    ) -> windows::Result<Option<SubtitleIterator<R>>> {
         // Find a suitable track
         let mut track = None;
         for track_info in &self.track_infos {
@@ -191,7 +194,10 @@ impl<R: Read> MkvFile<R> {
         }
     }
 
-    pub fn subtitle_iter_from_track_number(self, track_number: u64) -> windows::Result<Option<SubtitleIterator<R>>> {
+    pub fn subtitle_iter_from_track_number(
+        self,
+        track_number: u64,
+    ) -> windows::Result<Option<SubtitleIterator<R>>> {
         // Find a suitable track
         let mut track = None;
         for track_info in &self.track_infos {
@@ -206,7 +212,10 @@ impl<R: Read> MkvFile<R> {
         }
     }
 
-    fn subtitle_iter_from_track_info(self, track_info: TrackInfo) -> windows::Result<Option<SubtitleIterator<R>>> {
+    fn subtitle_iter_from_track_info(
+        self,
+        track_info: TrackInfo,
+    ) -> windows::Result<Option<SubtitleIterator<R>>> {
         match track_info.encoding {
             KnownEncoding::PGS => {
                 let subtitle_iter = SubtitleIterator {
@@ -214,7 +223,7 @@ impl<R: Read> MkvFile<R> {
                     mkv_iter: self.mkv_iter,
                 };
                 Ok(Some(subtitle_iter))
-            },
+            }
             _ => Ok(None),
         }
     }
@@ -241,7 +250,9 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
                                 assert_eq!(block.lacing, None);
                                 // Decode our bitmap
                                 let bitmap = match self.track_info.encoding {
-                                    KnownEncoding::PGS => pgs::parse_segments(&block.payload).unwrap(),
+                                    KnownEncoding::PGS => {
+                                        pgs::parse_segments(&block.payload).unwrap()
+                                    }
                                     _ => None,
                                 };
                                 if let Some(bitmap) = bitmap {
@@ -273,7 +284,7 @@ pub fn load_first_n_subtitles<P: AsRef<Path>>(
     language: KnownLanguage,
 ) -> windows::Result<Option<Vec<String>>> {
     let winrt_language = language.create_winrt_language()?.unwrap();
-    
+
     let file = File::open(&path).unwrap();
     let file = MkvFile::new(file);
     let iter = if let Some(track_number) = track_number {
@@ -324,4 +335,3 @@ fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Resul
     }
     Ok(None)
 }
-
