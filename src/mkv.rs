@@ -1,8 +1,6 @@
 use std::{convert::TryInto, fs::File, io::Read, path::Path};
 
-use bindings::Windows::{
-    Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine,
-};
+use bindings::Windows::{Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine, UI::Color};
 use webm_iterable::{
     matroska_spec::{Block, EbmlSpecification, MatroskaSpec},
     tags::{TagData, TagPosition},
@@ -46,7 +44,7 @@ pub enum KnownEncoding {
     VOB {
         width: u32,
         height: u32,
-        palette: Vec<u32>,
+        palette: Vec<Color>,
     },
     Unknown(String),
 }
@@ -91,12 +89,16 @@ impl KnownEncoding {
                                         let g_str = &color_str[2..4];
                                         let b_str = &color_str[4..6];
 
-                                        let r = u32::from_str_radix(r_str, 16).unwrap();
-                                        let g = u32::from_str_radix(g_str, 16).unwrap();
-                                        let b = u32::from_str_radix(b_str, 16).unwrap();
+                                        let r = u8::from_str_radix(r_str, 16).unwrap();
+                                        let g = u8::from_str_radix(g_str, 16).unwrap();
+                                        let b = u8::from_str_radix(b_str, 16).unwrap();
 
-                                        // Repackaging as BGRA8
-                                        let color = 255 << 24 | b << 16 | g << 8 | r;
+                                        let color = Color {
+                                            A: 255,
+                                            R: r,
+                                            G: g,
+                                            B: b,
+                                        };
                                         colors.push(color);
                                     }
                                     palette = Some(colors);
@@ -472,6 +474,10 @@ fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Resul
 mod tests {
     use std::{fs::File, path::Path};
 
+    use byteorder::{BigEndian, ReadBytesExt};
+
+    use crate::mkv::KnownEncoding;
+
     use super::{KnownLanguage, MkvFile};
 
     #[test]
@@ -479,11 +485,30 @@ mod tests {
         let path = r#"output/title_t00.mkv"#;
         let file = File::open(path).unwrap();
         let mkv = MkvFile::new(file);
-        let block_iter = mkv.block_iter(KnownLanguage::English)?.unwrap();
+        let mut track = None;
+        for track_info in mkv.tracks() {
+            if track_info.language == KnownLanguage::English {
+                track = Some(track_info.clone())
+            }
+        }
+        let track = track.unwrap();
+        let (width, height, palette) = match &track.encoding {
+            KnownEncoding::VOB { width, height, palette } => {
+                (width, height, palette)
+            },
+            _ => panic!()
+        };
+        let block_iter = mkv.block_iter_from_track_info(track.clone())?;
         let mut path = Path::new("output/vob/something").to_owned();
         for (i, block) in block_iter.enumerate() {
-            path.set_file_name(&format!("{}.bin", i));
-            std::fs::write(&path, block.payload).unwrap();
+            let len = block.payload.len();
+            let mut reader = std::io::Cursor::new(block.payload);
+            let size = reader.read_u16::<BigEndian>().unwrap();
+            assert_eq!(len, size as usize);
+            // https://wiki.multimedia.cx/index.php?title=VOBsub
+            // http://dvd.sourceforge.net/spu_notes
+            //path.set_file_name(&format!("{}.bmp", i));
+            //std::fs::write(&path, &block.payload).unwrap();
         }
         Ok(())
     }
