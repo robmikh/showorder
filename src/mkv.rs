@@ -472,13 +472,44 @@ fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Resul
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, path::Path};
+    use std::{fs::File, io::{Cursor, Read}, path::Path};
 
+    use bindings::Windows::UI::Color;
     use byteorder::{BigEndian, ReadBytesExt};
 
     use crate::mkv::KnownEncoding;
 
     use super::{KnownLanguage, MkvFile};
+
+    fn parse_two_u12(data: &[u8]) -> (u16, u16) {
+        let v1_p1 = (data[0] as u16) << 8;
+        let v1_p2 = (data[1] >> 4) as u16;
+        let v1 = v1_p1 | v1_p2;
+        let v2_p1 = (((data[1] << 4) >> 4) as u16) << 8;
+        let v2_p2 = data[2] as u16;
+        let v2 = v2_p1 | v2_p2;
+        (v1, v2)
+    }
+
+    fn compute_size(x1: u16, x2: u16, y1: u16, y2: u16) -> (u16, u16) {
+        let width = x2 - x1 + 1;
+        let height = y2 - y1 + 1;
+        (width, height)
+    }
+
+    #[test]
+    fn parse_u12_test() {
+        let dummy_data = [ 0x00u8, 0x02, 0xcf, 0x00, 0x22, 0x3e];
+        let (x1, x2) = parse_two_u12(&dummy_data[0..3]);
+        let (y1, y2) = parse_two_u12(&dummy_data[3..]);
+        assert_eq!(x1, 0x000);
+        assert_eq!(x2, 0x2cf);
+        assert_eq!(y1, 0x002);
+        assert_eq!(y2, 0x23e);
+        println!("x1: {:X} x2: {:X} y1: {:X}, y2: {:X}", x1, x2, y1, y2);
+        let (width, height) = compute_size(x1, x2, y1, y2);
+        println!("size: {:X} x {:X}", width, height);
+    }
 
     #[test]
     fn experiment() -> windows::Result<()> {
@@ -498,18 +529,277 @@ mod tests {
             },
             _ => panic!()
         };
+        println!("Size: {} x {}", width, height);
         let block_iter = mkv.block_iter_from_track_info(track.clone())?;
         let mut path = Path::new("output/vob/something").to_owned();
         for (i, block) in block_iter.enumerate() {
             let len = block.payload.len();
             let mut reader = std::io::Cursor::new(block.payload);
-            let size = reader.read_u16::<BigEndian>().unwrap();
-            assert_eq!(len, size as usize);
-            // https://wiki.multimedia.cx/index.php?title=VOBsub
-            // http://dvd.sourceforge.net/spu_notes
-            //path.set_file_name(&format!("{}.bmp", i));
-            //std::fs::write(&path, &block.payload).unwrap();
+            let subtitle_packet_size = reader.read_u16::<BigEndian>().unwrap();
+            assert_eq!(len, subtitle_packet_size as usize);
+            //println!("Length: {:X}", len);
+            //println!("Subtitle packet size: {:X}", subtitle_packet_size);
+
+            // http://sam.zoy.org/writings/dvd/subtitles/ and http://dvd.sourceforge.net/spu_notes
+            // disagree here, but the zoy source seems to be correct. The size of the data packet includes
+            // the bytes we read to determine the size. We subtract that to get the size of the data
+            // without the bytes representing the size itself.
+            let data_packet_size = reader.read_u16::<BigEndian>().unwrap() as usize;
+            let data_packet_data_start = reader.position() as usize;
+            let data_packet_data_size = data_packet_size - data_packet_data_start;
+            //println!("Data packet size: {:X}", data_packet_size);
+            //println!("Data packet data start: {:X}", data_packet_data_start);
+            //println!("Data packet data size: {:X}", data_packet_data_size);
+            let mut data_packet_data = vec![0u8; data_packet_data_size as usize];
+            reader.read_exact(&mut data_packet_data).unwrap();
+
+            // Parse the command sequences
+            loop {
+                let current_sequence_position = reader.position() as usize;
+                // http://sam.zoy.org/writings/dvd/subtitles/ says that each sequence starts
+                // with 2 bytes with the date(?) and 2 bytes with the offest to the next
+                // sequence.
+                let date_data = reader.read_u16::<BigEndian>().unwrap();
+                let next_seq_position = reader.read_u16::<BigEndian>().unwrap() as usize;
+
+                let mut size = None;
+                loop {
+                    let command_type = reader.read_u8().unwrap();
+                    //println!("{:X}", command_type);
+                    match command_type {
+                        0x00 => { /* Start subpicture */}
+                        0x01 => { /* Start displaying */ }
+                        0x02 => { /* Stop displaying */ }
+                        0x03 => {
+                            // Palette information
+                            let data = reader.read_u16::<BigEndian>().unwrap(); 
+                        }
+                        0x04 => {
+                            // Alpha information
+                            let data = reader.read_u16::<BigEndian>().unwrap(); 
+                        }
+                        0x05 => { 
+                            // Screen coordinates
+                            let mut data = vec![0u8; 6];
+                            reader.read_exact(&mut data).unwrap();
+
+                            // The data is in the form of x1, x2, y1, y2, with
+                            // each value being 3 nibbles in size.
+                            //println!("{:02X?}", &data);
+                            let (x1, x2) = parse_two_u12(&data[0..3]);
+                            let (y1, y2) = parse_two_u12(&data[3..]);
+                            //println!("x1: {:03X} x2: {:03X} y1: {:03X}, y2: {:03X}", x1, x2, y1, y2);
+                            let (width, height) = compute_size(x1, x2, y1, y2);
+                            //println!("size: {:03X} x {:03X}", width, height);
+
+                            size = Some((width as usize, height as usize))
+                        }
+                        0x06 => { 
+                            // Image data (?)
+                            let first_line_position = reader.read_u16::<BigEndian>().unwrap() as usize;
+                            let second_line_position = reader.read_u16::<BigEndian>().unwrap() as usize;
+                            let first_line_position = first_line_position - data_packet_data_start;
+                            let second_line_position = second_line_position - data_packet_data_start;
+                            //println!("First line position: {:X}", first_line_position);
+                            //println!("Second line position: {:X}", second_line_position);
+                            let even_data = &data_packet_data[first_line_position..second_line_position];
+                            let odd_data = &data_packet_data[second_line_position..];
+                            //println!("Even data: {:X?}", even_data);
+                            //println!("Odd data: {:X?}", odd_data);
+                            {
+                                let temp_palette = [
+                                    Color { A: 255, R: 255, G: 255, B: 255},
+                                    Color { A: 255, R: 0, G: 0, B: 0},
+                                    Color { A: 255, R: 255, G: 0, B: 0},
+                                    Color { A: 255, R: 0, G: 255, B: 0},
+                                    Color { A: 255, R: 0, G: 0, B: 255},
+                                ];
+                                let (width, height) = size.unwrap();
+                                let even_lines_pixels = decode_image(even_data, width, height / 2, &temp_palette);
+                                let odd_lines_pixels = decode_image(odd_data, width, height - height / 2, &temp_palette);
+                                let bytes = interlace_image(&even_lines_pixels, &odd_lines_pixels, width, height);
+                                path.set_file_name(&format!("{}size{}x{}.bin", i, width, height));
+                                std::fs::write(&path, &bytes).unwrap();
+                            }
+                        }
+                        0xFF => {
+                            break;
+                        }
+                        _ => { 
+                            println!("Position: {:X}", reader.position());
+                            println!("Payload: {:X?}", &reader.get_ref()[(reader.position() - 1) as usize ..]);
+                            println!("Payload: {:X?}", &reader.get_ref());
+                            panic!("Unknown command type: 0x{:X}", command_type) 
+                        }
+                    }
+                }
+
+                if current_sequence_position == next_seq_position {
+                    break;
+                }
+            }
         }
         Ok(())
+    }
+
+    fn interlace_image(even_data: &[u8], odd_data: &[u8], width: usize, height: usize) -> Vec<u8> {
+        let bytes_per_pixel = 4;
+        let mut bytes = vec![0u8; width * height * bytes_per_pixel];
+        assert_eq!(even_data.len() + odd_data.len(), bytes.len());
+        let stride = width * bytes_per_pixel;
+        for (i, line) in even_data.chunks(stride).enumerate() {
+            let interlaced_index = (i * 2) * stride;
+            (&mut bytes[interlaced_index..interlaced_index + stride]).copy_from_slice(line);
+        }
+        for (i, line) in odd_data.chunks(stride).enumerate() {
+            let mut interlaced_index = ((i * 2) + 1) * stride;
+            // TODO: Find the source of my counting bug
+            if interlaced_index == bytes.len() {
+                interlaced_index = interlaced_index - stride;
+            }
+            (&mut bytes[interlaced_index..interlaced_index + stride]).copy_from_slice(line);
+        }
+        bytes
+    }
+
+    fn decode_image(data: &[u8], width: usize, height: usize, palette: &[Color]) -> Vec<u8> {
+        let mut pixels = Vec::new();
+        let mut nibble_reader = NibbleReader::new(data);
+        loop {
+            if pixels.len() == width * height {
+                break;
+            } else if pixels.len() > width * height {
+                panic!("Too many pixels!");
+            }
+
+            let first_nibble = nibble_reader.read_u4();
+            if first_nibble.is_none() {
+                break;
+            }
+            let first_nibble = first_nibble.unwrap();
+            match first_nibble {
+                0xf | 0xe | 0xd | 0xc | 0xb | 0xa | 0x9 | 0x8 | 0x7 | 0x6 | 0x5 | 0x4 => { 
+                    let value = first_nibble;
+                    let num_pixels = value >> 2;
+                    let color = value & 0x3;
+                    //println!("1 nibble value: num_pixels: {} color: {}", num_pixels, color);
+                    for _ in 0..num_pixels {
+                        let color = palette[color as usize];
+                        pixels.push(color);
+                    }
+                }
+                0x3 | 0x2 | 0x1 => {
+                    let second_nibble = nibble_reader.read_u4().unwrap();
+                    let value = (first_nibble << 4) | second_nibble;
+                    let num_pixels = value >> 2;
+                    let color = value & 0x3;
+                    //println!("2 nibble value: num_pixels: {} color: {}", num_pixels, color);
+                    for _ in 0..num_pixels {
+                        let color = palette[color as usize];
+                        pixels.push(color);
+                    }
+                }
+                0x0 => {
+                    let second_nibble = nibble_reader.read_u4().unwrap();
+                    match second_nibble {
+                        0xf | 0xe | 0xd | 0xc | 0xb | 0xa | 0x9 | 0x8 | 0x7 | 0x6 | 0x5 | 0x4 => {
+                            let value = (first_nibble << 4) | second_nibble;
+                            let third_nibble = nibble_reader.read_u4().unwrap();
+                            let value = ((value as u16) << 4) | third_nibble as u16;
+                            let num_pixels = value >> 2;
+                            let color = value & 0x3;
+                            //println!("3 nibble value: num_pixels: {} color: {}", num_pixels, color);
+                            for _ in 0..num_pixels {
+                                let color = palette[color as usize];
+                                pixels.push(color);
+                            }
+                        }
+                        0x3 | 0x2 | 0x1 => {
+                            let value = (first_nibble << 4) | second_nibble;
+                            let third_nibble = nibble_reader.read_u4().unwrap();
+                            let fourth_nibble = nibble_reader.read_u4().unwrap();
+                            let value2 = (third_nibble << 4) | fourth_nibble;
+                            let value = (value as u16) << 8 | value2 as u16;
+                            let num_pixels = value >> 2;
+                            let color = value & 0x3;
+                            //println!("4 nibble value: num_pixels: {} color: {}", num_pixels, color);
+                            for _ in 0..num_pixels {
+                                let color = palette[color as usize];
+                                pixels.push(color);
+                            }
+                        }
+                        0x0 => {
+                            let value = (first_nibble << 4) | second_nibble;
+                            let third_nibble = nibble_reader.read_u4().unwrap();
+                            let fourth_nibble = nibble_reader.read_u4().unwrap();
+                            let value2 = (third_nibble << 4) | fourth_nibble;
+                            let value = (value as u16) << 8 | value2 as u16;
+                            assert_eq!(third_nibble, 0);
+                            let color = value & 0x3;
+                            nibble_reader.round_to_next_byte();
+                            //println!("Fill rest of line with : {}", color);
+                            let current_position = pixels.len() % width;
+                            let num_pixels = width - current_position;
+                            for _ in 0..num_pixels {
+                                let color = palette[color as usize];
+                                pixels.push(color);
+                            }
+                            
+                        }
+                        _ => panic!("Unknown second nibble: {:X}", second_nibble)
+                    }
+                    
+                }
+                _ => panic!("Unknown first nibble: {:X}", first_nibble)
+            }
+        }
+
+        let mut bytes = Vec::new();
+        for color in pixels {
+            bytes.push(color.B);
+            bytes.push(color.G);
+            bytes.push(color.R);
+            bytes.push(color.A);
+        }
+        //let expected = width * height * 4;
+        //while bytes.len() < expected {
+        //    bytes.push(0);
+        //}
+        bytes
+    }
+
+    struct NibbleReader<'a> {
+        data: &'a [u8],
+        pos: usize,
+    }
+
+    impl<'a> NibbleReader<'a> {
+        pub fn new(data: &'a [u8]) -> Self {
+            Self {
+                data,
+                pos: 0,
+            }
+        }
+
+        pub fn read_u4(&mut self) -> Option<u8> {
+            let pos = self.pos; 
+            let byte_index = pos / 2;
+            if byte_index >= self.data.len() {
+                return None;
+            }
+            self.pos += 1;
+            let byte = self.data[byte_index];
+            if pos % 2 == 0 {
+                Some(byte >> 4)
+            } else {
+                Some((byte << 4) >> 4)
+            }
+        }
+
+        pub fn round_to_next_byte(&mut self) {
+            if self.pos % 2 != 0 {
+                self.pos += 1;
+            }
+        }
     }
 }
