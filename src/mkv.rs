@@ -472,7 +472,7 @@ fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Resul
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::{Cursor, Read}, path::Path};
+    use std::{fs::File, io::{Cursor, Read}, path::Path, thread::current};
 
     use bindings::Windows::UI::Color;
     use byteorder::{BigEndian, ReadBytesExt};
@@ -563,6 +563,8 @@ mod tests {
                 let next_seq_position = reader.read_u16::<BigEndian>().unwrap() as usize;
 
                 let mut size = None;
+                let mut current_color_palette = None;
+                let mut current_alpha_palette = None;
                 loop {
                     let command_type = reader.read_u8().unwrap();
                     //println!("{:X}", command_type);
@@ -572,11 +574,35 @@ mod tests {
                         0x02 => { /* Stop displaying */ }
                         0x03 => {
                             // Palette information
-                            let data = reader.read_u16::<BigEndian>().unwrap(); 
+                            let mut data = vec![0u8; 2];
+                            reader.read_exact(&mut data).unwrap();
+                            let mut nibble_reader = NibbleReader::new(&data);
+                            let color0 = nibble_reader.read_u4().unwrap();
+                            let color1 = nibble_reader.read_u4().unwrap();
+                            let color2 = nibble_reader.read_u4().unwrap();
+                            let color3 = nibble_reader.read_u4().unwrap();
+                            current_color_palette = Some([
+                                color0 as usize,
+                                color1 as usize,
+                                color2 as usize,
+                                color3 as usize,
+                            ]);
                         }
                         0x04 => {
                             // Alpha information
-                            let data = reader.read_u16::<BigEndian>().unwrap(); 
+                            let mut data = vec![0u8; 2];
+                            reader.read_exact(&mut data).unwrap();
+                            let mut nibble_reader = NibbleReader::new(&data);
+                            let alpha0 = nibble_reader.read_u4().unwrap();
+                            let alpha1 = nibble_reader.read_u4().unwrap();
+                            let alpha2 = nibble_reader.read_u4().unwrap();
+                            let alpha3 = nibble_reader.read_u4().unwrap();
+                            current_alpha_palette = Some([
+                                alpha0 as usize,
+                                alpha1 as usize,
+                                alpha2 as usize,
+                                alpha3 as usize,
+                            ]);
                         }
                         0x05 => { 
                             // Screen coordinates
@@ -607,16 +633,10 @@ mod tests {
                             //println!("Even data: {:X?}", even_data);
                             //println!("Odd data: {:X?}", odd_data);
                             {
-                                let temp_palette = [
-                                    Color { A: 255, R: 255, G: 255, B: 255},
-                                    Color { A: 255, R: 0, G: 0, B: 0},
-                                    Color { A: 255, R: 255, G: 0, B: 0},
-                                    Color { A: 255, R: 0, G: 255, B: 0},
-                                    Color { A: 255, R: 0, G: 0, B: 255},
-                                ];
+                                let palette = build_subpalette(&palette, &current_color_palette.unwrap(), &current_alpha_palette.unwrap());
                                 let (width, height) = size.unwrap();
-                                let even_lines_pixels = decode_image(even_data, width, height / 2, &temp_palette);
-                                let odd_lines_pixels = decode_image(odd_data, width, height - height / 2, &temp_palette);
+                                let even_lines_pixels = decode_image(even_data, width, height / 2, &palette);
+                                let odd_lines_pixels = decode_image(odd_data, width, height - height / 2, &palette);
                                 let bytes = interlace_image(&even_lines_pixels, &odd_lines_pixels, width, height);
                                 path.set_file_name(&format!("{}size{}x{}.bin", i, width, height));
                                 std::fs::write(&path, &bytes).unwrap();
@@ -640,6 +660,22 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize]) -> Vec<Color> {
+        let mut subpalette = Vec::new();
+        for (i, color_index) in color_info.iter().enumerate() {
+            // -3 because http://dvd.sourceforge.net/spu_notes (???)
+            let alpha_value = alpha_info[3 - i];
+            let color = palette[*color_index];
+            subpalette.push(Color {
+                A: alpha_value as u8,
+                R: color.R,
+                G: color.G,
+                B: color.B
+            });
+        }
+        subpalette
     }
 
     fn interlace_image(even_data: &[u8], odd_data: &[u8], width: usize, height: usize) -> Vec<u8> {
@@ -677,27 +713,21 @@ mod tests {
                 break;
             }
             let first_nibble = first_nibble.unwrap();
-            match first_nibble {
+            let (num_pixels, color) = match first_nibble {
                 0xf | 0xe | 0xd | 0xc | 0xb | 0xa | 0x9 | 0x8 | 0x7 | 0x6 | 0x5 | 0x4 => { 
                     let value = first_nibble;
-                    let num_pixels = value >> 2;
-                    let color = value & 0x3;
+                    let num_pixels = (value >> 2) as usize;
+                    let color = (value & 0x3) as usize;
                     //println!("1 nibble value: num_pixels: {} color: {}", num_pixels, color);
-                    for _ in 0..num_pixels {
-                        let color = palette[color as usize];
-                        pixels.push(color);
-                    }
+                    (num_pixels, color)
                 }
                 0x3 | 0x2 | 0x1 => {
                     let second_nibble = nibble_reader.read_u4().unwrap();
                     let value = (first_nibble << 4) | second_nibble;
-                    let num_pixels = value >> 2;
-                    let color = value & 0x3;
+                    let num_pixels = (value >> 2) as usize;
+                    let color = (value & 0x3) as usize;
                     //println!("2 nibble value: num_pixels: {} color: {}", num_pixels, color);
-                    for _ in 0..num_pixels {
-                        let color = palette[color as usize];
-                        pixels.push(color);
-                    }
+                    (num_pixels, color)
                 }
                 0x0 => {
                     let second_nibble = nibble_reader.read_u4().unwrap();
@@ -706,13 +736,10 @@ mod tests {
                             let value = (first_nibble << 4) | second_nibble;
                             let third_nibble = nibble_reader.read_u4().unwrap();
                             let value = ((value as u16) << 4) | third_nibble as u16;
-                            let num_pixels = value >> 2;
-                            let color = value & 0x3;
+                            let num_pixels = (value >> 2) as usize;
+                            let color = (value & 0x3) as usize;
                             //println!("3 nibble value: num_pixels: {} color: {}", num_pixels, color);
-                            for _ in 0..num_pixels {
-                                let color = palette[color as usize];
-                                pixels.push(color);
-                            }
+                            (num_pixels, color)
                         }
                         0x3 | 0x2 | 0x1 => {
                             let value = (first_nibble << 4) | second_nibble;
@@ -720,13 +747,10 @@ mod tests {
                             let fourth_nibble = nibble_reader.read_u4().unwrap();
                             let value2 = (third_nibble << 4) | fourth_nibble;
                             let value = (value as u16) << 8 | value2 as u16;
-                            let num_pixels = value >> 2;
-                            let color = value & 0x3;
+                            let num_pixels = (value >> 2) as usize;
+                            let color = (value & 0x3) as usize;
                             //println!("4 nibble value: num_pixels: {} color: {}", num_pixels, color);
-                            for _ in 0..num_pixels {
-                                let color = palette[color as usize];
-                                pixels.push(color);
-                            }
+                            (num_pixels, color)
                         }
                         0x0 => {
                             let value = (first_nibble << 4) | second_nibble;
@@ -735,22 +759,22 @@ mod tests {
                             let value2 = (third_nibble << 4) | fourth_nibble;
                             let value = (value as u16) << 8 | value2 as u16;
                             assert_eq!(third_nibble, 0);
-                            let color = value & 0x3;
+                            let color = (value & 0x3) as usize;
                             nibble_reader.round_to_next_byte();
                             //println!("Fill rest of line with : {}", color);
                             let current_position = pixels.len() % width;
                             let num_pixels = width - current_position;
-                            for _ in 0..num_pixels {
-                                let color = palette[color as usize];
-                                pixels.push(color);
-                            }
-                            
+                            (num_pixels, color)
                         }
                         _ => panic!("Unknown second nibble: {:X}", second_nibble)
                     }
                     
                 }
                 _ => panic!("Unknown first nibble: {:X}", first_nibble)
+            };
+            for _ in 0..num_pixels {
+                let color = palette[color];
+                pixels.push(color);
             }
         }
 
@@ -761,10 +785,6 @@ mod tests {
             bytes.push(color.R);
             bytes.push(color.A);
         }
-        //let expected = width * height * 4;
-        //while bytes.len() < expected {
-        //    bytes.push(0);
-        //}
         bytes
     }
 
