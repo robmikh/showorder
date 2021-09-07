@@ -56,11 +56,12 @@ impl KnownEncoding {
             "S_VOBSUB" => {
                 if let Some(data) = data {
                     let idx_string = String::from_utf8_lossy(data);
+                    //println!("{}", idx_string);
                     let mut lines = idx_string.lines();
-                    let first_line = lines.nth(0).unwrap();
-                    if first_line != r#"# VobSub index file, v7 (do not modify this line!)"# {
-                        println!("Warning! Expected to see the VobSub v7 line at the beginning of the private data...");
-                    }
+                    //let first_line = lines.nth(0).unwrap();
+                    //if first_line != r#"# VobSub index file, v7 (do not modify this line!)"# {
+                    //    println!("Warning! Expected to see the VobSub v7 line at the beginning of the private data...");
+                    //}
                     let mut size = None;
                     let mut palette = None;
                     for line in lines {
@@ -103,7 +104,9 @@ impl KnownEncoding {
                                     }
                                     palette = Some(colors);
                                 }
-                                _ => {}
+                                _ => { 
+                                    //println!("Unknown name: \"{}\"", name); 
+                                }
                             }
                         }
                     }
