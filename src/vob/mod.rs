@@ -102,11 +102,13 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
                     // Alpha information
                     let mut data = vec![0u8; 2];
                     reader.read_exact(&mut data).unwrap();
+                    //println!("{:02X?}", data);
                     let mut nibble_reader = NibbleReader::new(&data);
                     let alpha0 = nibble_reader.read_u4().unwrap();
                     let alpha1 = nibble_reader.read_u4().unwrap();
                     let alpha2 = nibble_reader.read_u4().unwrap();
                     let alpha3 = nibble_reader.read_u4().unwrap();
+                    //println!("{:02X}, {:02X}, {:02X}, {:02X}", alpha0, alpha1, alpha2, alpha3);
                     current_alpha_palette = Some([
                         alpha0 as usize,
                         alpha1 as usize,
@@ -173,10 +175,15 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
 fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize]) -> Vec<Color> {
     let mut subpalette = Vec::new();
     for (i, color_index) in color_info.iter().enumerate() {
-        let alpha_value = alpha_info[i];
-        let color = palette[*color_index];
+        let original_alpha_value = alpha_info[i];
+        let alpha_value = ((original_alpha_value as f32 / 16.0) * 255.0) as usize;
+        let color = if original_alpha_value == 0 {
+            Color { A: 0, R: 0, G: 0, B: 0 }
+        } else {
+            palette[*color_index]
+        };
         subpalette.push(Color {
-            A: 255 - alpha_value as u8, // ???
+            A: alpha_value as u8,
             R: color.R,
             G: color.G,
             B: color.B
@@ -280,7 +287,7 @@ fn decode_image(data: &[u8], width: usize, height: usize, palette: &[Color]) -> 
             _ => panic!("Unknown first nibble: {:X}", first_nibble)
         };
         for _ in 0..num_pixels {
-            let color = palette[color];
+            let color = palette[3 - color]; // ???
             pixels.push(color);
         }
     }
