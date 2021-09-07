@@ -2,6 +2,8 @@ mod mkv;
 mod pgs;
 mod srt;
 mod text;
+mod vob;
+mod interop;
 
 use std::{
     collections::{HashMap, HashSet},
