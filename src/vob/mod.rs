@@ -28,11 +28,11 @@ pub fn parse_block(data: &[u8], palette: &[Color]) -> windows::Result<Option<Sof
 
 fn parse_two_u12(data: &[u8]) -> (u16, u16) {
     let v1_p1 = (data[0] as u16) << 8;
-    let v1_p2 = (data[1] >> 4) as u16;
-    let v1 = v1_p1 | v1_p2;
-    let v2_p1 = (((data[1] << 4) >> 4) as u16) << 8;
+    let v1_p2 = data[1] as u16;
+    let v1 = (v1_p1 | v1_p2) >> 4;
+    let v2_p1 = (data[1] as u16) << 8;
     let v2_p2 = data[2] as u16;
-    let v2 = v2_p1 | v2_p2;
+    let v2 = ((v2_p1 | v2_p2) << 4) >> 4;
     (v1, v2)
 }
 
@@ -193,7 +193,7 @@ fn decode_image(data: &[u8], width: usize, height: usize, palette: &[Color]) -> 
         if pixels.len() == width * height {
             break;
         } else if pixels.len() > width * height {
-            panic!("Too many pixels!");
+            panic!("Too many pixels! {} > {} * {}", pixels.len(), width, height);
         }
 
         let first_nibble = nibble_reader.read_u4();
@@ -319,18 +319,23 @@ mod tests {
 
     use super::*;
 
+    fn test_pos_data(data: &[u8], x1_expected: u16, x2_expected: u16, y1_expected: u16, y2_expected: u16) {
+        println!("data: {:02X?}", data);
+        let (x1, x2) = parse_two_u12(&data[0..3]);
+        let (y1, y2) = parse_two_u12(&data[3..]);
+        assert_eq!(x1, x1_expected);
+        assert_eq!(x2, x2_expected);
+        assert_eq!(y1, y1_expected);
+        assert_eq!(y2, y2_expected);
+        println!("x1: {:03X} x2: {:03X} y1: {:03X}, y2: {:03X}", x1, x2, y1, y2);
+        let (width, height) = compute_size(x1, x2, y1, y2);
+        println!("size: {:03X} x {:03X}", width, height);
+    } 
+
     #[test]
     fn parse_u12_test() {
-        let dummy_data = [ 0x00u8, 0x02, 0xcf, 0x00, 0x22, 0x3e];
-        let (x1, x2) = parse_two_u12(&dummy_data[0..3]);
-        let (y1, y2) = parse_two_u12(&dummy_data[3..]);
-        assert_eq!(x1, 0x000);
-        assert_eq!(x2, 0x2cf);
-        assert_eq!(y1, 0x002);
-        assert_eq!(y2, 0x23e);
-        println!("x1: {:X} x2: {:X} y1: {:X}, y2: {:X}", x1, x2, y1, y2);
-        let (width, height) = compute_size(x1, x2, y1, y2);
-        println!("size: {:X} x {:X}", width, height);
+        test_pos_data(&[0x00u8, 0x02, 0xcf, 0x00, 0x22, 0x3e], 0x000, 0x2cf, 0x002, 0x23e);
+        test_pos_data(&[0x0Eu8, 0xA1, 0xE1, 0x1A, 0x01, 0xBB], 0x0EA, 0x1E1, 0x1A0, 0x1BB);
     }
 
     #[test]
