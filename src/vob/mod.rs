@@ -321,7 +321,7 @@ impl<'a> NibbleReader<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use std::{fs::File, path::Path};
 
     use crate::mkv::{KnownEncoding, KnownLanguage, MkvFile};

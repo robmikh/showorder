@@ -513,8 +513,27 @@ mod test {
     use crate::{compute_distances, flatten_subtitles, process_input_path, process_reference_path};
 
     #[test]
-    fn popeye_basic() -> windows::Result<()> {
-        let subtitles = process_input_path("data/popeye/mkv", 5, None)?;
+    fn popeye_basic_pgs() -> windows::Result<()> {
+        popeye_basic_subfolder(5, "pgs")
+    }
+
+    #[test]
+    fn popeye_match_pgs() -> windows::Result<()> {
+        popeye_match_subfolder(5, "pgs")
+    }
+
+    #[test]
+    fn popeye_basic_vob() -> windows::Result<()> {
+        popeye_basic_subfolder(5, "vob")
+    }
+
+    #[test]
+    fn popeye_match_vob() -> windows::Result<()> {
+        popeye_match_subfolder(5, "vob")
+    }
+
+    fn popeye_basic_subfolder(num_subtitles: usize, subfolder: &str) -> windows::Result<()> {
+        let subtitles = process_input_path(&format!("data/popeye/mkv/{}", subfolder), num_subtitles, None)?;
         let mut subtitles = flatten_subtitles(&subtitles);
         assert_eq!(subtitles.len(), 4);
         subtitles.sort_by(|(file1, _), (file2, _)| file1.cmp(file2));
@@ -534,10 +553,8 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn popeye_match() -> windows::Result<()> {
-        let num_subtitles = 5;
-        let subtitles = process_input_path("data/popeye/mkv", num_subtitles, None)?;
+    fn popeye_match_subfolder(num_subtitles: usize, subfolder: &str) -> windows::Result<()> {
+        let subtitles = process_input_path(&format!("data/popeye/mkv/{}", subfolder), num_subtitles, None)?;
         let subtitles = flatten_subtitles(&subtitles);
         let ref_subtitles = process_reference_path("data/popeye/srt", num_subtitles)?;
         let ref_subtitles = flatten_subtitles(&ref_subtitles);
@@ -553,6 +570,7 @@ mod test {
                 (file_name, ref_file_name)
             })
             .collect();
+        assert_eq!(closest.len(), 4);
 
         let expected: HashMap<_, _> = [
             ("Title T00-1.mkv", "popeye p3.eng.srt"),
