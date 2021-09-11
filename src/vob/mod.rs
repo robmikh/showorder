@@ -161,7 +161,6 @@ fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize
     let mut subpalette = Vec::new();
     for (i, color_index) in color_info.iter().enumerate() {
         let original_alpha_value = alpha_info[i];
-        let alpha_value = ((original_alpha_value as f32 / 16.0) * 255.0) as usize;
         let color = if original_alpha_value == 0 {
             Color {
                 A: 0,
@@ -170,14 +169,16 @@ fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize
                 B: 0,
             }
         } else {
-            palette[*color_index]
+            let palette_color = &palette[*color_index];
+            let alpha_value = ((16.min(original_alpha_value + 1) as f32 / 16.0) * 255.0) as usize;
+            Color {
+                A: alpha_value as u8,
+                R: palette_color.R,
+                G: palette_color.G,
+                B: palette_color.B,
+            }
         };
-        subpalette.push(Color {
-            A: alpha_value as u8,
-            R: color.R,
-            G: color.G,
-            B: color.B,
-        });
+        subpalette.push(color);
     }
     subpalette
 }
