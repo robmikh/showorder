@@ -1,6 +1,10 @@
 use std::io::Read;
 
-use bindings::Windows::{Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap}, Storage::Streams::Buffer, UI::Color};
+use bindings::Windows::{
+    Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap},
+    Storage::Streams::Buffer,
+    UI::Color,
+};
 use byteorder::{BigEndian, ReadBytesExt};
 
 use crate::interop::as_mut_slice;
@@ -58,7 +62,7 @@ fn read_four_nibbles<R: Read>(mut reader: R) -> Option<[usize; 4]> {
     ])
 }
 
-fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize, usize)>{
+fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize, usize)> {
     let len = block_data.len();
     let mut reader = std::io::Cursor::new(block_data);
     let subtitle_packet_size = reader.read_u16::<BigEndian>().unwrap();
@@ -89,7 +93,7 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
         loop {
             let command_type = reader.read_u8().unwrap();
             match command_type {
-                0x00 => { /* Start subpicture */}
+                0x00 => { /* Start subpicture */ }
                 0x01 => { /* Start displaying */ }
                 0x02 => { /* Stop displaying */ }
                 0x03 => {
@@ -100,7 +104,7 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
                     // Alpha information
                     current_alpha_palette = Some(read_four_nibbles(&mut reader).unwrap());
                 }
-                0x05 => { 
+                0x05 => {
                     // Screen coordinates
                     let mut data = vec![0u8; 6];
                     reader.read_exact(&mut data).unwrap();
@@ -113,7 +117,7 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
 
                     size = Some((width as usize, height as usize))
                 }
-                0x06 => { 
+                0x06 => {
                     // Image data location
                     let first_line_position = reader.read_u16::<BigEndian>().unwrap() as usize;
                     let second_line_position = reader.read_u16::<BigEndian>().unwrap() as usize;
@@ -122,19 +126,26 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
                     let even_data = &data_packet_data[first_line_position..second_line_position];
                     let odd_data = &data_packet_data[second_line_position..];
                     {
-                        let palette = build_subpalette(&palette, &current_color_palette.unwrap(), &current_alpha_palette.unwrap());
+                        let palette = build_subpalette(
+                            &palette,
+                            &current_color_palette.unwrap(),
+                            &current_alpha_palette.unwrap(),
+                        );
                         let (width, height) = size.unwrap();
-                        let even_lines_pixels = decode_image(even_data, width, height / 2, &palette);
-                        let odd_lines_pixels = decode_image(odd_data, width, height - height / 2, &palette);
-                        let bytes = interlace_image(&even_lines_pixels, &odd_lines_pixels, width, height);
+                        let even_lines_pixels =
+                            decode_image(even_data, width, height / 2, &palette);
+                        let odd_lines_pixels =
+                            decode_image(odd_data, width, height - height / 2, &palette);
+                        let bytes =
+                            interlace_image(&even_lines_pixels, &odd_lines_pixels, width, height);
                         return Some((bytes, width, height));
                     }
                 }
                 0xFF => {
                     break;
                 }
-                _ => { 
-                    panic!("Unknown command type: 0x{:X}", command_type) 
+                _ => {
+                    panic!("Unknown command type: 0x{:X}", command_type)
                 }
             }
         }
@@ -152,7 +163,12 @@ fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize
         let original_alpha_value = alpha_info[i];
         let alpha_value = ((original_alpha_value as f32 / 16.0) * 255.0) as usize;
         let color = if original_alpha_value == 0 {
-            Color { A: 0, R: 0, G: 0, B: 0 }
+            Color {
+                A: 0,
+                R: 0,
+                G: 0,
+                B: 0,
+            }
         } else {
             palette[*color_index]
         };
@@ -160,7 +176,7 @@ fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize
             A: alpha_value as u8,
             R: color.R,
             G: color.G,
-            B: color.B
+            B: color.B,
         });
     }
     subpalette
@@ -195,7 +211,13 @@ fn decode_image(data: &[u8], width: usize, height: usize, palette: &[Color]) -> 
         if pixels.len() == total_pixels {
             break;
         } else if pixels.len() > total_pixels {
-            panic!("Too many pixels! {} > {} ({} * {})", pixels.len(), total_pixels, width, height);
+            panic!(
+                "Too many pixels! {} > {} ({} * {})",
+                pixels.len(),
+                total_pixels,
+                width,
+                height
+            );
             //println!("  Too many pixels ({}). Bailing...", pixels.len());
             //pixels.resize(total_pixels, Color { A: 0, R: 0, G: 0, B: 0 });
             //break;
@@ -207,7 +229,7 @@ fn decode_image(data: &[u8], width: usize, height: usize, palette: &[Color]) -> 
         }
         let first_nibble = first_nibble.unwrap();
         let (num_pixels, color) = match first_nibble {
-            0xf | 0xe | 0xd | 0xc | 0xb | 0xa | 0x9 | 0x8 | 0x7 | 0x6 | 0x5 | 0x4 => { 
+            0xf | 0xe | 0xd | 0xc | 0xb | 0xa | 0x9 | 0x8 | 0x7 | 0x6 | 0x5 | 0x4 => {
                 let value = first_nibble;
                 let num_pixels = (value >> 2) as usize;
                 let color = (value & 0x3) as usize;
@@ -259,11 +281,10 @@ fn decode_image(data: &[u8], width: usize, height: usize, palette: &[Color]) -> 
                         let num_pixels = width - current_position;
                         (num_pixels, color)
                     }
-                    _ => panic!("Unknown second nibble: {:X}", second_nibble)
+                    _ => panic!("Unknown second nibble: {:X}", second_nibble),
                 }
-                
             }
-            _ => panic!("Unknown first nibble: {:X}", first_nibble)
+            _ => panic!("Unknown first nibble: {:X}", first_nibble),
         };
         for _ in 0..num_pixels {
             let color = palette[3 - color]; // ???
@@ -292,14 +313,11 @@ struct NibbleReader<'a> {
 
 impl<'a> NibbleReader<'a> {
     pub fn new(data: &'a [u8]) -> Self {
-        Self {
-            data,
-            pos: 0,
-        }
+        Self { data, pos: 0 }
     }
 
     pub fn read_u4(&mut self) -> Option<u8> {
-        let pos = self.pos; 
+        let pos = self.pos;
         let byte_index = pos / 2;
         if byte_index >= self.data.len() {
             return None;
@@ -328,7 +346,13 @@ mod test {
 
     use super::*;
 
-    fn test_pos_data(data: &[u8], x1_expected: u16, x2_expected: u16, y1_expected: u16, y2_expected: u16) {
+    fn test_pos_data(
+        data: &[u8],
+        x1_expected: u16,
+        x2_expected: u16,
+        y1_expected: u16,
+        y2_expected: u16,
+    ) {
         println!("data: {:02X?}", data);
         let (x1, x2) = parse_two_u12(&data[0..3]);
         let (y1, y2) = parse_two_u12(&data[3..]);
@@ -336,15 +360,30 @@ mod test {
         assert_eq!(x2, x2_expected);
         assert_eq!(y1, y1_expected);
         assert_eq!(y2, y2_expected);
-        println!("x1: {:03X} x2: {:03X} y1: {:03X}, y2: {:03X}", x1, x2, y1, y2);
+        println!(
+            "x1: {:03X} x2: {:03X} y1: {:03X}, y2: {:03X}",
+            x1, x2, y1, y2
+        );
         let (width, height) = compute_size(x1, x2, y1, y2);
         println!("size: {:03X} x {:03X}", width, height);
-    } 
+    }
 
     #[test]
     fn parse_u12_test() {
-        test_pos_data(&[0x00u8, 0x02, 0xcf, 0x00, 0x22, 0x3e], 0x000, 0x2cf, 0x002, 0x23e);
-        test_pos_data(&[0x0Eu8, 0xA1, 0xE1, 0x1A, 0x01, 0xBB], 0x0EA, 0x1E1, 0x1A0, 0x1BB);
+        test_pos_data(
+            &[0x00u8, 0x02, 0xcf, 0x00, 0x22, 0x3e],
+            0x000,
+            0x2cf,
+            0x002,
+            0x23e,
+        );
+        test_pos_data(
+            &[0x0Eu8, 0xA1, 0xE1, 0x1A, 0x01, 0xBB],
+            0x0EA,
+            0x1E1,
+            0x1A0,
+            0x1BB,
+        );
     }
 
     #[test]
@@ -359,11 +398,13 @@ mod test {
             }
         }
         let track = track.unwrap();
-        let (width, height, palette) = match &track.encoding {
-            KnownEncoding::VOB { width, height, palette } => {
-                (width, height, palette)
-            },
-            _ => panic!()
+        let (width, height, _palette) = match &track.encoding {
+            KnownEncoding::VOB {
+                width,
+                height,
+                palette,
+            } => (width, height, palette),
+            _ => panic!(),
         };
         println!("Size: {} x {}", width, height);
         let block_iter = mkv.block_iter_from_track_info(track.clone())?;
@@ -380,12 +421,12 @@ mod test {
         Ok(())
     }
 
-    fn get_even_data_from_payload(block_data: &[u8]) -> Option<Vec<u8>>{
+    fn get_even_data_from_payload(block_data: &[u8]) -> Option<Vec<u8>> {
         let len = block_data.len();
         let mut reader = std::io::Cursor::new(block_data);
         let subtitle_packet_size = reader.read_u16::<BigEndian>().unwrap();
         assert_eq!(len, subtitle_packet_size as usize);
-    
+
         // http://sam.zoy.org/writings/dvd/subtitles/ and http://dvd.sourceforge.net/spu_notes
         // disagree here, but the zoy source seems to be correct. The size of the data packet includes
         // the bytes we read to determine the size. We subtract that to get the size of the data
@@ -395,7 +436,7 @@ mod test {
         let data_packet_data_size = data_packet_size - data_packet_data_start;
         let mut data_packet_data = vec![0u8; data_packet_data_size as usize];
         reader.read_exact(&mut data_packet_data).unwrap();
-    
+
         // Parse the command sequences
         loop {
             let current_sequence_position = reader.position() as usize;
@@ -404,56 +445,57 @@ mod test {
             // sequence.
             let _date_data = reader.read_u16::<BigEndian>().unwrap();
             let next_seq_position = reader.read_u16::<BigEndian>().unwrap() as usize;
-    
-            let mut size = None;
-            let mut current_color_palette = None;
-            let mut current_alpha_palette = None;
+
+            let mut _size = None;
+            let mut _current_color_palette = None;
+            let mut _current_alpha_palette = None;
             loop {
                 let command_type = reader.read_u8().unwrap();
                 match command_type {
-                    0x00 => { /* Start subpicture */}
+                    0x00 => { /* Start subpicture */ }
                     0x01 => { /* Start displaying */ }
                     0x02 => { /* Stop displaying */ }
                     0x03 => {
                         // Palette information
-                        current_color_palette = Some(read_four_nibbles(&mut reader).unwrap());
+                        _current_color_palette = Some(read_four_nibbles(&mut reader).unwrap());
                     }
                     0x04 => {
                         // Alpha information
-                        current_alpha_palette = Some(read_four_nibbles(&mut reader).unwrap());
+                        _current_alpha_palette = Some(read_four_nibbles(&mut reader).unwrap());
                     }
-                    0x05 => { 
+                    0x05 => {
                         // Screen coordinates
                         let mut data = vec![0u8; 6];
                         reader.read_exact(&mut data).unwrap();
-    
+
                         // The data is in the form of x1, x2, y1, y2, with
                         // each value being 3 nibbles in size.
                         let (x1, x2) = parse_two_u12(&data[0..3]);
                         let (y1, y2) = parse_two_u12(&data[3..]);
                         let (width, height) = compute_size(x1, x2, y1, y2);
-    
-                        size = Some((width as usize, height as usize))
+
+                        _size = Some((width as usize, height as usize))
                     }
-                    0x06 => { 
+                    0x06 => {
                         // Image data location
                         let first_line_position = reader.read_u16::<BigEndian>().unwrap() as usize;
                         let second_line_position = reader.read_u16::<BigEndian>().unwrap() as usize;
                         let first_line_position = first_line_position - data_packet_data_start;
                         let second_line_position = second_line_position - data_packet_data_start;
-                        let even_data = &data_packet_data[first_line_position..second_line_position];
-                        let odd_data = &data_packet_data[second_line_position..];
+                        let even_data =
+                            &data_packet_data[first_line_position..second_line_position];
+                        let _odd_data = &data_packet_data[second_line_position..];
                         return Some(even_data.to_vec());
                     }
                     0xFF => {
                         break;
                     }
-                    _ => { 
-                        panic!("Unknown command type: 0x{:X}", command_type) 
+                    _ => {
+                        panic!("Unknown command type: 0x{:X}", command_type)
                     }
                 }
             }
-    
+
             if current_sequence_position == next_seq_position {
                 break;
             }

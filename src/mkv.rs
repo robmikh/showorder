@@ -1,6 +1,8 @@
 use std::{convert::TryInto, fs::File, io::Read, path::Path};
 
-use bindings::Windows::{Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine, UI::Color};
+use bindings::Windows::{
+    Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine, UI::Color,
+};
 use webm_iterable::{
     matroska_spec::{Block, EbmlSpecification, MatroskaSpec},
     tags::{TagData, TagPosition},
@@ -57,7 +59,7 @@ impl KnownEncoding {
                 if let Some(data) = data {
                     let idx_string = String::from_utf8_lossy(data);
                     //println!("{}", idx_string);
-                    let mut lines = idx_string.lines();
+                    let lines = idx_string.lines();
                     //let first_line = lines.nth(0).unwrap();
                     //if first_line != r#"# VobSub index file, v7 (do not modify this line!)"# {
                     //    println!("Warning! Expected to see the VobSub v7 line at the beginning of the private data...");
@@ -104,25 +106,27 @@ impl KnownEncoding {
                                     }
                                     palette = Some(colors);
                                 }
-                                _ => { 
-                                    //println!("Unknown name: \"{}\"", name); 
+                                _ => {
+                                    //println!("Unknown name: \"{}\"", name);
                                 }
                             }
                         }
                     }
 
-                    let (width, height) = size.expect("Expected size in Vob subtitle track private data");
-                    let palette = palette.expect("Expected palette in Vob subtitle track private data");
+                    let (width, height) =
+                        size.expect("Expected size in Vob subtitle track private data");
+                    let palette =
+                        palette.expect("Expected palette in Vob subtitle track private data");
 
                     KnownEncoding::VOB {
                         width,
                         height,
-                        palette
+                        palette,
                     }
                 } else {
                     panic!("Expected private data for VOB subtitles!");
                 }
-            },
+            }
             _ => KnownEncoding::Unknown(tag.to_owned()),
         }
     }
@@ -130,7 +134,7 @@ impl KnownEncoding {
     pub fn to_string(&self) -> &str {
         match self {
             KnownEncoding::PGS => "S_HDMV/PGS",
-            KnownEncoding::VOB{..} => "S_VOBSUB",
+            KnownEncoding::VOB { .. } => "S_VOBSUB",
             KnownEncoding::Unknown(value) => value.as_str(),
         }
     }
@@ -219,7 +223,10 @@ impl<R: Read> MkvFile<R> {
                                         if let Some(language) = language {
                                             let language = KnownLanguage::from_tag(&language);
                                             if let Some(encoding) = encoding {
-                                                let encoding = KnownEncoding::from_tag_and_data(&encoding, private_data);
+                                                let encoding = KnownEncoding::from_tag_and_data(
+                                                    &encoding,
+                                                    private_data,
+                                                );
                                                 let track_info = TrackInfo {
                                                     track_number,
                                                     encoding,
@@ -297,7 +304,7 @@ impl<R: Read> MkvFile<R> {
     ) -> windows::Result<Option<SubtitleIterator<R>>> {
         let track_number = track_info.track_number;
         match &track_info.encoding {
-            KnownEncoding::PGS | KnownEncoding::VOB{..} => {
+            KnownEncoding::PGS | KnownEncoding::VOB { .. } => {
                 let subtitle_iter = SubtitleIterator {
                     track_info,
                     block_iter: BlockIterator::from_webm(track_number, self.mkv_iter),
@@ -308,10 +315,7 @@ impl<R: Read> MkvFile<R> {
         }
     }
 
-    pub fn block_iter(
-        self,
-        language: KnownLanguage,
-    ) -> windows::Result<Option<BlockIterator<R>>> {
+    pub fn block_iter(self, language: KnownLanguage) -> windows::Result<Option<BlockIterator<R>>> {
         // Find a suitable track
         let mut track = None;
         for track_info in &self.track_infos {
@@ -361,7 +365,7 @@ impl<R: Read> Iterator for BlockIterator<R> {
                         if let TagPosition::FullTag(_id, tag) = tag.tag.clone() {
                             let block: Block = tag.try_into().unwrap();
                             if block.track == self.track_number {
-                                return Some(block)
+                                return Some(block);
                             }
                         }
                     }
@@ -393,17 +397,16 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
     }
 }
 
-pub fn decode_bitmap(block: &Block, track_info: &TrackInfo) -> windows::Result<Option<SoftwareBitmap>> {
+pub fn decode_bitmap(
+    block: &Block,
+    track_info: &TrackInfo,
+) -> windows::Result<Option<SoftwareBitmap>> {
     // We don't handle lacing
     assert_eq!(block.lacing, None);
 
     let bitmap = match &track_info.encoding {
-        KnownEncoding::PGS => {
-            pgs::parse_segments(&block.payload)?
-        }
-        KnownEncoding::VOB{ palette,.. } => {
-            vob::parse_block(&block.payload, &palette)?
-        }
+        KnownEncoding::PGS => pgs::parse_segments(&block.payload)?,
+        KnownEncoding::VOB { palette, .. } => vob::parse_block(&block.payload, &palette)?,
         _ => None,
     };
     Ok(bitmap)

@@ -1,9 +1,7 @@
 use bindings::Windows::Graphics::Imaging::BitmapPixelFormat;
 use bindings::Windows::Graphics::Imaging::SoftwareBitmap;
 use bindings::Windows::Storage::Streams::Buffer;
-use bindings::Windows::Win32::System::WinRT::IBufferByteAccess;
 use bindings::Windows::UI::Color;
-use windows::Interface;
 
 use crate::interop::as_mut_slice;
 
@@ -67,4 +65,3 @@ pub fn decode_image(
     )?;
     Ok(bitmap)
 }
-

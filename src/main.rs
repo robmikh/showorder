@@ -1,9 +1,9 @@
+mod interop;
 mod mkv;
 mod pgs;
 mod srt;
 mod text;
 mod vob;
-mod interop;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -533,7 +533,11 @@ mod test {
     }
 
     fn popeye_basic_subfolder(num_subtitles: usize, subfolder: &str) -> windows::Result<()> {
-        let subtitles = process_input_path(&format!("data/popeye/mkv/{}", subfolder), num_subtitles, None)?;
+        let subtitles = process_input_path(
+            &format!("data/popeye/mkv/{}", subfolder),
+            num_subtitles,
+            None,
+        )?;
         let mut subtitles = flatten_subtitles(&subtitles);
         assert_eq!(subtitles.len(), 4);
         subtitles.sort_by(|(file1, _), (file2, _)| file1.cmp(file2));
@@ -554,7 +558,11 @@ mod test {
     }
 
     fn popeye_match_subfolder(num_subtitles: usize, subfolder: &str) -> windows::Result<()> {
-        let subtitles = process_input_path(&format!("data/popeye/mkv/{}", subfolder), num_subtitles, None)?;
+        let subtitles = process_input_path(
+            &format!("data/popeye/mkv/{}", subfolder),
+            num_subtitles,
+            None,
+        )?;
         let subtitles = flatten_subtitles(&subtitles);
         let ref_subtitles = process_reference_path("data/popeye/srt", num_subtitles)?;
         let ref_subtitles = flatten_subtitles(&ref_subtitles);
