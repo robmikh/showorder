@@ -6,7 +6,7 @@ fn main() {
             SoftwareBitmap, BitmapPixelFormat, BitmapEncoder,
         },
         Windows::Storage::{
-            StorageFolder, StorageFile, CreationCollisionOption, FileAccessMode,
+            StorageFolder, StorageFile, CreationCollisionOption, FileAccessMode, FileIO,
         },
         Windows::Storage::Streams::{
             IBuffer, Buffer, IRandomAccessStream,

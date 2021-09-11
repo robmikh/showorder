@@ -12,8 +12,8 @@ use std::{
 };
 
 use bindings::Windows::{
-    Graphics::Imaging::BitmapEncoder,
-    Storage::{CreationCollisionOption, FileAccessMode, StorageFolder},
+    Graphics::Imaging::{BitmapEncoder, BitmapPixelFormat},
+    Storage::{CreationCollisionOption, FileAccessMode, FileIO, StorageFolder, Streams::Buffer},
 };
 use clap::{App, Arg, SubCommand};
 use levenshtein::levenshtein;
@@ -53,13 +53,14 @@ fn main() -> windows::Result<()> {
         )
         .subcommand(
             SubCommand::with_name("dump")
+                .arg(Arg::with_name("dump type").index(1).required(true))
                 .arg(
                     Arg::with_name("mkv path")
-                        .index(1)
+                        .index(2)
                         .requires("output path")
                         .required(true),
                 )
-                .arg(Arg::with_name("output path").index(2)),
+                .arg(Arg::with_name("output path").index(3)),
         )
         .subcommand(
             SubCommand::with_name("match")
@@ -100,7 +101,31 @@ fn main() -> windows::Result<()> {
     } else if let Some(matches) = matches.subcommand_matches("dump") {
         let mkv_path = matches.value_of("mkv path").unwrap();
         let output_path = matches.value_of("output path").unwrap();
-        dump_subtitles(mkv_path, output_path, num_subtitles, track_number)?;
+        let dump_type = matches.value_of("dump type").unwrap();
+        match dump_type {
+            "png" => {
+                dump_subtitle_images(
+                    ImageDumpType::Png,
+                    mkv_path,
+                    output_path,
+                    num_subtitles,
+                    track_number,
+                )?;
+            }
+            "bgra8" => {
+                dump_subtitle_images(
+                    ImageDumpType::Raw,
+                    mkv_path,
+                    output_path,
+                    num_subtitles,
+                    track_number,
+                )?;
+            }
+            "block" => {
+                dump_subtitle_block_data(mkv_path, output_path, num_subtitles, track_number)?
+            }
+            _ => panic!("Unknown dump type '{}'", dump_type),
+        }
     } else if let Some(matches) = matches.subcommand_matches("list") {
         let file_type = matches.value_of("file type").unwrap().to_lowercase();
         let input_path = matches.value_of("input path").unwrap();
@@ -138,7 +163,13 @@ fn list_tracks(mkv_path: &str) -> windows::Result<()> {
     Ok(())
 }
 
-fn dump_subtitles(
+enum ImageDumpType {
+    Png,
+    Raw,
+}
+
+fn dump_subtitle_images(
+    dump_type: ImageDumpType,
     mkv_path: &str,
     output_path: &str,
     num_subtitles: usize,
@@ -162,18 +193,70 @@ fn dump_subtitles(
         };
         let folder = StorageFolder::GetFolderFromPathAsync(path)?.get()?;
         for (i, bitmap) in iter.enumerate() {
-            let file = folder
-                .CreateFileAsync(
-                    format!("{}.png", i),
-                    CreationCollisionOption::ReplaceExisting,
-                )?
-                .get()?;
-            let stream = file.OpenAsync(FileAccessMode::ReadWrite)?.get()?;
-            let encoder =
-                BitmapEncoder::CreateAsync(BitmapEncoder::PngEncoderId()?, stream)?.get()?;
-            encoder.SetSoftwareBitmap(bitmap)?;
-            encoder.FlushAsync()?.get()?;
+            match dump_type {
+                ImageDumpType::Png => {
+                    let file = folder
+                        .CreateFileAsync(
+                            format!("{}.png", i),
+                            CreationCollisionOption::ReplaceExisting,
+                        )?
+                        .get()?;
+                    let stream = file.OpenAsync(FileAccessMode::ReadWrite)?.get()?;
+                    let encoder =
+                        BitmapEncoder::CreateAsync(BitmapEncoder::PngEncoderId()?, stream)?
+                            .get()?;
+                    encoder.SetSoftwareBitmap(bitmap)?;
+                    encoder.FlushAsync()?.get()?;
+                }
+                ImageDumpType::Raw => {
+                    let width = bitmap.PixelWidth()?;
+                    let height = bitmap.PixelHeight()?;
+                    let format = bitmap.BitmapPixelFormat()?;
+                    assert_eq!(format, BitmapPixelFormat::Bgra8);
+                    let bytes_per_pixel = 4;
+                    let bitmap_size = (width * height * bytes_per_pixel) as u32;
+                    let buffer = Buffer::Create(bitmap_size)?;
+                    buffer.SetLength(bitmap_size)?;
+                    bitmap.CopyToBuffer(&buffer)?;
+                    let file = folder
+                        .CreateFileAsync(
+                            format!("{}size{}x{}.bin", i, width, height),
+                            CreationCollisionOption::ReplaceExisting,
+                        )?
+                        .get()?;
+                    FileIO::WriteBufferAsync(file, buffer)?.get()?;
+                }
+            }
 
+            if i >= num_subtitles {
+                break;
+            }
+        }
+    } else {
+        println!("No English subtitles found!");
+    }
+    Ok(())
+}
+
+fn dump_subtitle_block_data(
+    mkv_path: &str,
+    output_path: &str,
+    num_subtitles: usize,
+    track_number: Option<u64>,
+) -> windows::Result<()> {
+    let file = File::open(mkv_path).expect(&format!("Could not read from \"{}\"", mkv_path));
+    let mkv = MkvFile::new(file);
+    let iter = if let Some(track_number) = track_number {
+        mkv.block_iter_from_track_number(track_number)
+    } else {
+        mkv.block_iter(KnownLanguage::English)
+    };
+    if let Some(iter) = iter {
+        let mut path = Path::new(output_path).to_owned();
+        path.push("something");
+        for (i, block) in iter.enumerate() {
+            path.set_file_name(&format!("{}.bin", i));
+            std::fs::write(&path, &block.payload).unwrap();
             if i >= num_subtitles {
                 break;
             }

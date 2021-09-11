@@ -315,7 +315,7 @@ impl<R: Read> MkvFile<R> {
         }
     }
 
-    pub fn block_iter(self, language: KnownLanguage) -> windows::Result<Option<BlockIterator<R>>> {
+    pub fn block_iter(self, language: KnownLanguage) -> Option<BlockIterator<R>> {
         // Find a suitable track
         let mut track = None;
         for track_info in &self.track_infos {
@@ -324,18 +324,30 @@ impl<R: Read> MkvFile<R> {
             }
         }
         if let Some(track) = track {
-            Ok(Some(self.block_iter_from_track_info(track)?))
+            Some(self.block_iter_from_track_info(track))
         } else {
-            Ok(None)
+            None
         }
     }
 
-    pub(crate) fn block_iter_from_track_info(
-        self,
-        track_info: TrackInfo,
-    ) -> windows::Result<BlockIterator<R>> {
+    pub fn block_iter_from_track_number(self, track_number: u64) -> Option<BlockIterator<R>> {
+        // Find a suitable track
+        let mut track = None;
+        for track_info in &self.track_infos {
+            if track_info.track_number == track_number {
+                track = Some(track_info.clone());
+            }
+        }
+        if let Some(track) = track {
+            Some(self.block_iter_from_track_info(track))
+        } else {
+            None
+        }
+    }
+
+    fn block_iter_from_track_info(self, track_info: TrackInfo) -> BlockIterator<R> {
         let track_number = track_info.track_number;
-        Ok(BlockIterator::from_webm(track_number, self.mkv_iter))
+        BlockIterator::from_webm(track_number, self.mkv_iter)
     }
 }
 
