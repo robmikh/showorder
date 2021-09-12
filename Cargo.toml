@@ -11,7 +11,7 @@ exclude = [
 #webm-iterable = "0.2.0"
 webm-iterable = { git = "https://github.com/robmikh/webm-iterable", branch = "dev" }
 #webm-iterable = { path = "../webm-iterable" }
-windows = "0.10.0"
+windows = "0.19.0"
 bindings = { path = "bindings" }
 byteorder = "1.4.3"
 nalgebra = "0.27.1"

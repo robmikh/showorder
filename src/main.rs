@@ -15,6 +15,7 @@ use std::{
 use bindings::Windows::{
     Graphics::Imaging::{BitmapEncoder, BitmapPixelFormat},
     Storage::{CreationCollisionOption, FileAccessMode, FileIO, StorageFolder, Streams::Buffer},
+    Win32::System::WinRT::{RoInitialize, RO_INIT_MULTITHREADED},
 };
 use clap::{App, Arg, SubCommand};
 use levenshtein::levenshtein;
@@ -75,7 +76,7 @@ fn main() -> windows::Result<()> {
         )
         .get_matches();
 
-    windows::initialize_mta()?;
+    unsafe { RoInitialize(RO_INIT_MULTITHREADED)? };
 
     let num_subtitles = usize::from_str_radix(matches.value_of("max-count").unwrap(), 10).unwrap();
     let track_number = if let Some(track_str) = matches.value_of("track") {

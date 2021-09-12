@@ -18,7 +18,7 @@ fn main() {
             Language,
         },
         Windows::Win32::System::WinRT::{
-            IBufferByteAccess, IMemoryBufferByteAccess,
+            IBufferByteAccess, IMemoryBufferByteAccess, RoInitialize,
         },
     );
 }
