@@ -1,3 +1,4 @@
+mod image;
 mod interop;
 mod mkv;
 mod pgs;
@@ -632,10 +633,23 @@ mod test {
             })
             .collect::<Vec<_>>();
         let mut iter = subtitles.iter();
-        assert_eq!(iter.next(), Some(&("Title T00-1.mkv", "oh oh wwhat happened ohh let me go let me go let me go nonono dont drop me now oh man the lifeboats")));
-        assert_eq!(iter.next(), Some(&("Title T01-2.mkv", "whos the most phenominal extra ordinary fellow yous sinbad the sailor how do you like that stooges on one of my travels i ran into this now there was a thrill id be sorry to miss")));
-        assert_eq!(iter.next(), Some(&("Title T02-3.mkv", "woah whats this hey let me down you big overgrown canary what are you doing taking me for a ride or something come back to me there you are with gravy")));
-        assert_eq!(iter.next(), Some(&("Title T03-4.mkv", "im sinbad the sailor so hearty and hale i live on an island on the back ofa whale its a whale of an island thats not a bad joke its lord and its master is this handsom bloke")));
+        // TODO: Reconcile ocr differences between test data
+        match subfolder {
+            "pgs" => {
+                assert_eq!(iter.next(), Some(&("Title T00-1.mkv", "oh oh wwhat happened ohh let me go let me go let me go nonono dont drop me now oh man the lifeboats")));
+                assert_eq!(iter.next(), Some(&("Title T01-2.mkv", "whos the most phenominal extra ordinary fellow yous sinbad the sailor how do you like that stooges on one of my travels i ran into this now there was a thrill id be sorry to miss")));
+                assert_eq!(iter.next(), Some(&("Title T02-3.mkv", "woah whats this hey let me down you big overgrown canary what are you doing taking me for a ride or something come back to me there you are with gravy")));
+                assert_eq!(iter.next(), Some(&("Title T03-4.mkv", "im sinbad the sailor so hearty and hale i live on an island on the back ofa whale its a whale of an island thats not a bad joke its lord and its master is this handsom bloke")));
+            }
+            "vob" => {
+                assert_eq!(iter.next(), Some(&("Title T00-1.mkv", "ohl ohl w what happened ohh let me go let me go let me go nonono dont drop me now oh man the lifeboats")));
+                assert_eq!(iter.next(), Some(&("Title T01-2.mkv", "whos the most phenom inal extra ordinary how do you like that stooges on one of my travels i ran into this now there was a thrill id be sorry to miss spread out his wings and the sunlight grew dim")));
+                assert_eq!(iter.next(), Some(&("Title T02-3.mkv", "woah whats this hey let me down you big overgrown canary what are you doing taking me for a ride or something there you are with gravy laughter")));
+                assert_eq!(iter.next(), Some(&("Title T03-4.mkv", "i m sinbad the sailor so hearty and i live on an island on the back of a thats not a bad joke its lord and its master is this handsom bloke whos the most remarkable extraordinary")));
+            }
+            _ => panic!("Unknown subfolder!"),
+        }
+
         Ok(())
     }
 

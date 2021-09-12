@@ -3,7 +3,7 @@ fn main() {
         Windows::Foundation::*,
         Windows::UI::Color,
         Windows::Graphics::Imaging::{
-            SoftwareBitmap, BitmapPixelFormat, BitmapEncoder,
+            SoftwareBitmap, BitmapPixelFormat, BitmapEncoder, BitmapBuffer, BitmapBufferAccessMode,
         },
         Windows::Storage::{
             StorageFolder, StorageFile, CreationCollisionOption, FileAccessMode, FileIO,
@@ -18,7 +18,7 @@ fn main() {
             Language,
         },
         Windows::Win32::System::WinRT::{
-            IBufferByteAccess,
+            IBufferByteAccess, IMemoryBufferByteAccess,
         },
     );
 }
