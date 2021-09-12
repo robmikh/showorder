@@ -1,9 +1,9 @@
 use bindings::Windows::Graphics::Imaging::BitmapPixelFormat;
 use bindings::Windows::Graphics::Imaging::SoftwareBitmap;
 use bindings::Windows::Storage::Streams::Buffer;
-use bindings::Windows::Win32::System::WinRT::IBufferByteAccess;
 use bindings::Windows::UI::Color;
-use windows::Interface;
+
+use crate::interop::as_mut_slice;
 
 use super::types::ObjectDef;
 
@@ -64,13 +64,4 @@ pub fn decode_image(
         height as i32,
     )?;
     Ok(bitmap)
-}
-
-unsafe fn as_mut_slice(buffer: &Buffer) -> windows::Result<&mut [u8]> {
-    let interop = buffer.cast::<IBufferByteAccess>()?;
-    let mut data = std::ptr::null_mut();
-    let len = buffer.Length()?;
-
-    interop.Buffer(&mut data).ok()?;
-    Ok(std::slice::from_raw_parts_mut(data, len as _))
 }

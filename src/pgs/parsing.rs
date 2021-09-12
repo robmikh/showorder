@@ -18,6 +18,12 @@ impl Deserialize for u16 {
     }
 }
 
+impl Deserialize for u32 {
+    fn deserialize<R: Read>(reader: &mut dyn Read) -> std::io::Result<Self> {
+        reader.read_u32::<BigEndian>()
+    }
+}
+
 #[macro_export]
 macro_rules! pgs_struct {
     ( $name:ident { $( $param:ident : $type:ty ),* $(,)* }) => (
