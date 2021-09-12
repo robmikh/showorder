@@ -216,7 +216,6 @@ fn dump_subtitle_images(
                     let bytes_per_pixel = 4;
                     let bitmap_size = (width * height * bytes_per_pixel) as u32;
                     let buffer = Buffer::Create(bitmap_size)?;
-                    buffer.SetLength(bitmap_size)?;
                     bitmap.CopyToBuffer(&buffer)?;
                     let file = folder
                         .CreateFileAsync(

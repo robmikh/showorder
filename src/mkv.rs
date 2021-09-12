@@ -1,7 +1,11 @@
 use std::{convert::TryInto, fs::File, io::Read, path::Path};
 
 use bindings::Windows::{
-    Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine, UI::Color,
+    Globalization::Language,
+    Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap},
+    Media::Ocr::OcrEngine,
+    Storage::Streams::Buffer,
+    UI::Color,
 };
 use webm_iterable::{
     matroska_spec::{Block, EbmlSpecification, MatroskaSpec},
@@ -10,6 +14,7 @@ use webm_iterable::{
 };
 
 use crate::{
+    interop::as_mut_slice,
     pgs,
     text::sanitize_text,
     vob::{self, parse_idx},
@@ -418,6 +423,45 @@ fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Resul
     // Decode our bitmap
     let result = engine.RecognizeAsync(bitmap)?.get()?;
     let text = result.Text()?.to_string();
+
+    // Window's OCR engine seems to have a problem with images
+    // that are too small in height. If we pad the image height to
+    // at least 40 pixels (found through testing), we can get better
+    // results.
+    let text = if text.is_empty() {
+        let height = bitmap.PixelHeight()?;
+        let min_height = 40;
+        if height < min_height {
+            let width = bitmap.PixelWidth()?;
+            let format = bitmap.BitmapPixelFormat()?;
+            assert_eq!(format, BitmapPixelFormat::Bgra8);
+            let bytes_per_pixel = 4;
+            let bitmap_size = (width * min_height * bytes_per_pixel) as u32;
+            let buffer = Buffer::Create(bitmap_size)?;
+            bitmap.CopyToBuffer(&buffer)?;
+            buffer.SetLength(bitmap_size)?;
+            let start = (width * height * bytes_per_pixel) as usize;
+            {
+                let slice = unsafe { as_mut_slice(&buffer)? };
+                for i in &mut slice[start..] {
+                    *i = 0;
+                }
+            }
+            let padded_bitmap = SoftwareBitmap::CreateCopyFromBuffer(
+                buffer,
+                BitmapPixelFormat::Bgra8,
+                width,
+                min_height,
+            )?;
+
+            let result = engine.RecognizeAsync(padded_bitmap)?.get()?;
+            result.Text()?.to_string()
+        } else {
+            text
+        }
+    } else {
+        text
+    };
     let text = text.trim();
 
     // Skip empty subtitles
