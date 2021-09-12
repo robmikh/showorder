@@ -7,7 +7,74 @@ use bindings::Windows::{
 };
 use byteorder::{BigEndian, ReadBytesExt};
 
-use crate::interop::as_mut_slice;
+use crate::{interop::as_mut_slice, mkv::KnownEncoding};
+
+pub fn parse_idx(data: &[u8]) -> KnownEncoding {
+    let idx_string = String::from_utf8_lossy(data);
+    //println!("{}", idx_string);
+    let lines = idx_string.lines();
+    //let first_line = lines.nth(0).unwrap();
+    //if first_line != r#"# VobSub index file, v7 (do not modify this line!)"# {
+    //    println!("Warning! Expected to see the VobSub v7 line at the beginning of the private data...");
+    //}
+    let mut size = None;
+    let mut palette = None;
+    for line in lines {
+        // Skip comments
+        if line.starts_with("#") {
+            continue;
+        }
+
+        // Split the line on the first ':'
+        if let Some((name, value)) = line.split_once(':') {
+            let value = value.trim();
+            match name {
+                "size" => {
+                    let (width_str, height_str) = value.split_once('x').unwrap();
+                    let width = u32::from_str_radix(width_str, 10).unwrap();
+                    let height = u32::from_str_radix(height_str, 10).unwrap();
+                    size = Some((width, height));
+                }
+                "palette" => {
+                    let mut colors = Vec::new();
+                    let color_strs = value.split(", ");
+                    for color_str in color_strs {
+                        assert_eq!(color_str.len(), 6);
+                        // Not sure what the format is, assuming RGB for now
+                        let r_str = &color_str[0..2];
+                        let g_str = &color_str[2..4];
+                        let b_str = &color_str[4..6];
+
+                        let r = u8::from_str_radix(r_str, 16).unwrap();
+                        let g = u8::from_str_radix(g_str, 16).unwrap();
+                        let b = u8::from_str_radix(b_str, 16).unwrap();
+
+                        let color = Color {
+                            A: 255,
+                            R: r,
+                            G: g,
+                            B: b,
+                        };
+                        colors.push(color);
+                    }
+                    palette = Some(colors);
+                }
+                _ => {
+                    //println!("Unknown name: \"{}\"", name);
+                }
+            }
+        }
+    }
+
+    let (width, height) = size.expect("Expected size in Vob subtitle track private data");
+    let palette = palette.expect("Expected palette in Vob subtitle track private data");
+
+    KnownEncoding::VOB {
+        width,
+        height,
+        palette,
+    }
+}
 
 pub fn parse_block(data: &[u8], palette: &[Color]) -> windows::Result<Option<SoftwareBitmap>> {
     if let Some((bytes, width, height)) = decode_block(data, palette) {
