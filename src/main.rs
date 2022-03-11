@@ -12,18 +12,19 @@ use std::{
     path::Path,
 };
 
-use bindings::Windows::{
+use clap::{App, Arg, SubCommand};
+use levenshtein::levenshtein;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use windows::{
+    core::Result,
     Graphics::Imaging::{BitmapEncoder, BitmapPixelFormat},
     Storage::{CreationCollisionOption, FileAccessMode, FileIO, StorageFolder, Streams::Buffer},
     Win32::System::WinRT::{RoInitialize, RO_INIT_MULTITHREADED},
 };
-use clap::{App, Arg, SubCommand};
-use levenshtein::levenshtein;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::mkv::{load_first_n_english_subtitles, KnownLanguage, MkvFile};
 
-fn main() -> windows::Result<()> {
+fn main() -> Result<()> {
     let matches = App::new("showorder")
         .arg(
             Arg::with_name("max-count")
@@ -150,7 +151,7 @@ fn main() -> windows::Result<()> {
     Ok(())
 }
 
-fn list_tracks(mkv_path: &str) -> windows::Result<()> {
+fn list_tracks(mkv_path: &str) -> Result<()> {
     let file = File::open(mkv_path).unwrap();
     let mkv = MkvFile::new(file);
     println!("Found subtitle tracks:");
@@ -176,7 +177,7 @@ fn dump_subtitle_images(
     output_path: &str,
     num_subtitles: usize,
     track_number: Option<u64>,
-) -> windows::Result<()> {
+) -> Result<()> {
     let file = File::open(mkv_path).expect(&format!("Could not read from \"{}\"", mkv_path));
     let mkv = MkvFile::new(file);
     let iter = if let Some(track_number) = track_number {
@@ -244,7 +245,7 @@ fn dump_subtitle_block_data(
     output_path: &str,
     num_subtitles: usize,
     track_number: Option<u64>,
-) -> windows::Result<()> {
+) -> Result<()> {
     let file = File::open(mkv_path).expect(&format!("Could not read from \"{}\"", mkv_path));
     let mkv = MkvFile::new(file);
     let iter = if let Some(track_number) = track_number {
@@ -272,7 +273,7 @@ fn list_mkv_subtitles(
     mkv_path: &str,
     num_subtitles: usize,
     track_number: Option<u64>,
-) -> windows::Result<()> {
+) -> Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from mkv files...");
     let files = process_input_path(&mkv_path, num_subtitles, track_number)?;
@@ -280,7 +281,7 @@ fn list_mkv_subtitles(
     Ok(())
 }
 
-fn list_srt_subtitles(srt_path: &str, num_subtitles: usize) -> windows::Result<()> {
+fn list_srt_subtitles(srt_path: &str, num_subtitles: usize) -> Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from srt files...");
     let files = process_reference_path(&srt_path, num_subtitles)?;
@@ -294,7 +295,7 @@ fn match_subtitles(
     num_subtitles: usize,
     track_number: Option<u64>,
     max_distance: Option<usize>,
-) -> windows::Result<()> {
+) -> Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from mkv files...");
     let files = process_input_path(&mkv_path, num_subtitles, track_number)?;
@@ -378,7 +379,7 @@ fn process_input_path<P: AsRef<Path>>(
     path: P,
     num_subtitles: usize,
     track_number: Option<u64>,
-) -> windows::Result<Vec<(String, Vec<String>)>> {
+) -> Result<Vec<(String, Vec<String>)>> {
     let path = path.as_ref();
     let mut result = Vec::new();
     if path.is_dir() {
@@ -442,7 +443,7 @@ fn print_subtitles(files: &Vec<(String, Vec<String>)>) {
 fn process_reference_path<P: AsRef<Path>>(
     path: P,
     num_subtitles: usize,
-) -> windows::Result<Vec<(String, Vec<String>)>> {
+) -> Result<Vec<(String, Vec<String>)>> {
     let path = path.as_ref();
     let mut result = Vec::new();
     if path.is_dir() {
@@ -593,30 +594,31 @@ fn compute_distances(
 #[cfg(test)]
 mod test {
     use std::{collections::HashMap, path::Path};
+    use windows::core::Result;
 
     use crate::{compute_distances, flatten_subtitles, process_input_path, process_reference_path};
 
     #[test]
-    fn popeye_basic_pgs() -> windows::Result<()> {
+    fn popeye_basic_pgs() -> Result<()> {
         popeye_basic_subfolder(5, "pgs")
     }
 
     #[test]
-    fn popeye_match_pgs() -> windows::Result<()> {
+    fn popeye_match_pgs() -> Result<()> {
         popeye_match_subfolder(5, "pgs")
     }
 
     #[test]
-    fn popeye_basic_vob() -> windows::Result<()> {
+    fn popeye_basic_vob() -> Result<()> {
         popeye_basic_subfolder(5, "vob")
     }
 
     #[test]
-    fn popeye_match_vob() -> windows::Result<()> {
+    fn popeye_match_vob() -> Result<()> {
         popeye_match_subfolder(5, "vob")
     }
 
-    fn popeye_basic_subfolder(num_subtitles: usize, subfolder: &str) -> windows::Result<()> {
+    fn popeye_basic_subfolder(num_subtitles: usize, subfolder: &str) -> Result<()> {
         let subtitles = process_input_path(
             &format!("data/popeye/mkv/{}", subfolder),
             num_subtitles,
@@ -654,7 +656,7 @@ mod test {
         Ok(())
     }
 
-    fn popeye_match_subfolder(num_subtitles: usize, subfolder: &str) -> windows::Result<()> {
+    fn popeye_match_subfolder(num_subtitles: usize, subfolder: &str) -> Result<()> {
         let subtitles = process_input_path(
             &format!("data/popeye/mkv/{}", subfolder),
             num_subtitles,

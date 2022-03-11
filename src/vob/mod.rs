@@ -1,11 +1,12 @@
 use std::io::Read;
 
-use bindings::Windows::{
+use byteorder::{BigEndian, ReadBytesExt};
+use windows::{
+    core::Result,
     Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap},
     Storage::Streams::Buffer,
     UI::Color,
 };
-use byteorder::{BigEndian, ReadBytesExt};
 
 use crate::{interop::as_mut_slice, mkv::KnownEncoding};
 
@@ -76,7 +77,7 @@ pub fn parse_idx(data: &[u8]) -> KnownEncoding {
     }
 }
 
-pub fn parse_block(data: &[u8], palette: &[Color]) -> windows::Result<Option<SoftwareBitmap>> {
+pub fn parse_block(data: &[u8], palette: &[Color]) -> Result<Option<SoftwareBitmap>> {
     if let Some((bytes, width, height)) = decode_block(data, palette) {
         let bitmap_size = (width * height * 4) as u32;
         let bitmap_buffer = Buffer::Create(bitmap_size)?;

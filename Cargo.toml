@@ -1,6 +1,6 @@
 [package]
 name = "showorder"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["robmikh <rob.mikh@outlook.com>"]
 edition = "2018"
 exclude = [
@@ -11,11 +11,23 @@ exclude = [
 #webm-iterable = "0.2.0"
 webm-iterable = { git = "https://github.com/robmikh/webm-iterable", branch = "dev" }
 #webm-iterable = { path = "../webm-iterable" }
-windows = "0.20.0"
-bindings = { path = "bindings" }
 byteorder = "1.4.3"
-nalgebra = "0.27.1"
-regex = "1.5.4"
+nalgebra = "0.30.1"
+regex = "1.5.5"
 rayon = "1.5.1"
 levenshtein = "1.0.5"
 clap = "2.33.3"
+
+[dependencies.windows]
+version = "0.33.0"
+features = [
+    "alloc",
+    "Foundation",
+    "UI",
+    "Graphics_Imaging",
+    "Storage",
+    "Storage_Streams",
+    "Media_Ocr",
+    "Globalization",
+    "Win32_System_WinRT",
+]

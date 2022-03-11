@@ -1,12 +1,13 @@
 use std::{convert::TryInto, fs::File, io::Read, path::Path};
 
-use bindings::Windows::{
-    Globalization::Language, Graphics::Imaging::SoftwareBitmap, Media::Ocr::OcrEngine, UI::Color,
-};
 use webm_iterable::{
     matroska_spec::{Block, EbmlSpecification, MatroskaSpec},
     tags::{TagData, TagPosition},
     WebmIterator,
+};
+use windows::{
+    core::Result, Globalization::Language, Graphics::Imaging::SoftwareBitmap,
+    Media::Ocr::OcrEngine, UI::Color,
 };
 
 use crate::{
@@ -30,7 +31,7 @@ impl KnownLanguage {
         }
     }
 
-    pub fn create_winrt_language(&self) -> windows::Result<Option<Language>> {
+    pub fn create_winrt_language(&self) -> Result<Option<Language>> {
         match self {
             KnownLanguage::English => Ok(Some(Language::CreateLanguage("en-US")?)),
             _ => Ok(None),
@@ -202,10 +203,7 @@ impl<R: Read> MkvFile<R> {
         &self.track_infos
     }
 
-    pub fn subtitle_iter(
-        self,
-        language: KnownLanguage,
-    ) -> windows::Result<Option<SubtitleIterator<R>>> {
+    pub fn subtitle_iter(self, language: KnownLanguage) -> Result<Option<SubtitleIterator<R>>> {
         // Find a suitable track
         let mut track = None;
         for track_info in &self.track_infos {
@@ -223,7 +221,7 @@ impl<R: Read> MkvFile<R> {
     pub fn subtitle_iter_from_track_number(
         self,
         track_number: u64,
-    ) -> windows::Result<Option<SubtitleIterator<R>>> {
+    ) -> Result<Option<SubtitleIterator<R>>> {
         // Find a suitable track
         let mut track = None;
         for track_info in &self.track_infos {
@@ -241,7 +239,7 @@ impl<R: Read> MkvFile<R> {
     fn subtitle_iter_from_track_info(
         self,
         track_info: TrackInfo,
-    ) -> windows::Result<Option<SubtitleIterator<R>>> {
+    ) -> Result<Option<SubtitleIterator<R>>> {
         let track_number = track_info.track_number;
         match &track_info.encoding {
             KnownEncoding::PGS | KnownEncoding::VOB { .. } => {
@@ -349,10 +347,7 @@ impl<R: Read> Iterator for SubtitleIterator<R> {
     }
 }
 
-pub fn decode_bitmap(
-    block: &Block,
-    track_info: &TrackInfo,
-) -> windows::Result<Option<SoftwareBitmap>> {
+pub fn decode_bitmap(block: &Block, track_info: &TrackInfo) -> Result<Option<SoftwareBitmap>> {
     // We don't handle lacing
     assert_eq!(block.lacing, None);
 
@@ -368,7 +363,7 @@ pub fn load_first_n_english_subtitles<P: AsRef<Path>>(
     path: P,
     num_subtitles: usize,
     track_number: Option<u64>,
-) -> windows::Result<Option<Vec<String>>> {
+) -> Result<Option<Vec<String>>> {
     load_first_n_subtitles(path, num_subtitles, track_number, KnownLanguage::English)
 }
 
@@ -377,7 +372,7 @@ pub fn load_first_n_subtitles<P: AsRef<Path>>(
     num_subtitles: usize,
     track_number: Option<u64>,
     language: KnownLanguage,
-) -> windows::Result<Option<Vec<String>>> {
+) -> Result<Option<Vec<String>>> {
     let winrt_language = language.create_winrt_language()?.unwrap();
 
     let file = File::open(&path).unwrap();
@@ -401,7 +396,7 @@ fn get_first_n_subtitles<R: Read>(
     iter: &mut SubtitleIterator<R>,
     engine: &OcrEngine,
     num_subtitles: usize,
-) -> windows::Result<Vec<String>> {
+) -> Result<Vec<String>> {
     let mut subtitles = Vec::new();
     for bitmap in iter {
         let text = process_bitmap(&bitmap, engine)?;
@@ -415,7 +410,7 @@ fn get_first_n_subtitles<R: Read>(
     Ok(subtitles)
 }
 
-fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> windows::Result<Option<String>> {
+fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> Result<Option<String>> {
     let width = bitmap.PixelWidth()? as usize;
     let height = bitmap.PixelHeight()? as usize;
 

@@ -1,7 +1,8 @@
-use bindings::Windows::Graphics::Imaging::BitmapPixelFormat;
-use bindings::Windows::Graphics::Imaging::SoftwareBitmap;
-use bindings::Windows::Storage::Streams::Buffer;
-use bindings::Windows::UI::Color;
+use windows::core::Result;
+use windows::Graphics::Imaging::BitmapPixelFormat;
+use windows::Graphics::Imaging::SoftwareBitmap;
+use windows::Storage::Streams::Buffer;
+use windows::UI::Color;
 
 use crate::interop::as_mut_slice;
 
@@ -30,7 +31,7 @@ pub fn decode_image(
     object_def: &ObjectDef,
     color_data_lines: &Vec<Vec<(i32, i32)>>,
     palette_data: &Vec<ConvertedPaletteEntry>,
-) -> windows::Result<SoftwareBitmap> {
+) -> Result<SoftwareBitmap> {
     let width = object_def.width as u32;
     let height = object_def.height as u32;
     let bitmap_size = width * height * 4;

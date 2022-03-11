@@ -2,10 +2,11 @@ mod image;
 mod parsing;
 mod types;
 
-use bindings::Windows::Graphics::Imaging::SoftwareBitmap;
-use bindings::Windows::UI::Color;
 use byteorder::ReadBytesExt;
 use nalgebra::SMatrix;
+use windows::core::Result;
+use windows::Graphics::Imaging::SoftwareBitmap;
+use windows::UI::Color;
 
 use self::image::decode_image;
 use self::image::ConvertedPaletteEntry;
@@ -19,7 +20,7 @@ use self::types::{ObjectDef, PaletteDef, PaletteEntry, SegmentHeader, SegmentTyp
 //          behavior of a small set of test files. Over time
 //          this should more closely follow the spec.
 //          Currently likely to break.
-pub fn parse_segments(data: &[u8]) -> windows::Result<Option<SoftwareBitmap>> {
+pub fn parse_segments(data: &[u8]) -> Result<Option<SoftwareBitmap>> {
     // The mkv spec (https://www.matroska.org/technical/subtitles.html) says
     // the PGS segments can be found within the blocks.
     //

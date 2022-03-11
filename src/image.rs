@@ -1,11 +1,12 @@
-use bindings::Windows::{
+use windows::{
+    core::Result,
     Graphics::Imaging::{BitmapBufferAccessMode, BitmapPixelFormat, SoftwareBitmap},
     Storage::Streams::Buffer,
 };
 
 use crate::interop::{as_mut_slice, memory_buffer_as_slice};
 
-pub fn scale_image(src_bitmap: &SoftwareBitmap, scale: f32) -> windows::Result<SoftwareBitmap> {
+pub fn scale_image(src_bitmap: &SoftwareBitmap, scale: f32) -> Result<SoftwareBitmap> {
     let width = src_bitmap.PixelWidth()? as usize;
     let height = src_bitmap.PixelHeight()? as usize;
 
