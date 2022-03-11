@@ -1,3 +1,4 @@
+mod cli;
 mod image;
 mod interop;
 mod mkv;
@@ -12,7 +13,8 @@ use std::{
     path::Path,
 };
 
-use clap::{App, Arg, SubCommand};
+use clap::Parser;
+use cli::{Args, Commands, DumpType, FileType};
 use levenshtein::levenshtein;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use windows::{
@@ -25,127 +27,68 @@ use windows::{
 use crate::mkv::{load_first_n_english_subtitles, KnownLanguage, MkvFile};
 
 fn main() -> Result<()> {
-    let matches = App::new("showorder")
-        .arg(
-            Arg::with_name("max-count")
-                .short("n")
-                .long("max-count")
-                .takes_value(true)
-                .default_value("5"),
-        )
-        .arg(
-            Arg::with_name("track")
-                .short("t")
-                .long("track")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("max distance")
-                .short("m")
-                .long("max")
-                .takes_value(true),
-        )
-        .subcommand(
-            SubCommand::with_name("list-tracks")
-                .arg(Arg::with_name("mkv path").index(1).required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("list")
-                .arg(Arg::with_name("file type").index(1).required(true))
-                .arg(Arg::with_name("input path").index(2).required(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("dump")
-                .arg(Arg::with_name("dump type").index(1).required(true))
-                .arg(
-                    Arg::with_name("mkv path")
-                        .index(2)
-                        .requires("output path")
-                        .required(true),
-                )
-                .arg(Arg::with_name("output path").index(3)),
-        )
-        .subcommand(
-            SubCommand::with_name("match")
-                .arg(
-                    Arg::with_name("mkv path")
-                        .index(1)
-                        .requires("reference path")
-                        .required(true),
-                )
-                .arg(Arg::with_name("reference path").index(2)),
-        )
-        .get_matches();
+    let args = Args::parse();
 
     unsafe { RoInitialize(RO_INIT_MULTITHREADED)? };
 
-    let num_subtitles = usize::from_str_radix(matches.value_of("max-count").unwrap(), 10).unwrap();
-    let track_number = if let Some(track_str) = matches.value_of("track") {
-        Some(u64::from_str_radix(track_str, 10).unwrap())
-    } else {
-        None
-    };
-    let min_distance = if let Some(track_str) = matches.value_of("min distance") {
-        Some(usize::from_str_radix(track_str, 10).unwrap())
-    } else {
-        None
-    };
+    let num_subtitles = args.max_count;
+    let track_number = args.track_number;
+    let max_distance = args.max_distance;
 
-    if let Some(matches) = matches.subcommand_matches("match") {
-        let mkv_path = matches.value_of("mkv path").unwrap();
-        let ref_path = matches.value_of("reference path").unwrap();
-        match_subtitles(
+    match args.command {
+        Commands::ListTracks { mkv_path } => {
+            list_tracks(&mkv_path)?;
+        }
+        Commands::List {
+            file_type,
+            input_path,
+        } => match file_type {
+            FileType::Mkv => {
+                list_mkv_subtitles(&input_path, num_subtitles, track_number)?;
+            }
+            FileType::Srt => {
+                list_srt_subtitles(&input_path, num_subtitles)?;
+            }
+        },
+        Commands::Dump {
+            dump_type,
             mkv_path,
-            ref_path,
-            num_subtitles,
-            track_number,
-            min_distance,
-        )?;
-    } else if let Some(matches) = matches.subcommand_matches("dump") {
-        let mkv_path = matches.value_of("mkv path").unwrap();
-        let output_path = matches.value_of("output path").unwrap();
-        let dump_type = matches.value_of("dump type").unwrap();
-        match dump_type {
-            "png" => {
+            output_path,
+        } => match dump_type {
+            DumpType::Png => {
                 dump_subtitle_images(
                     ImageDumpType::Png,
-                    mkv_path,
-                    output_path,
+                    &mkv_path,
+                    &output_path,
                     num_subtitles,
                     track_number,
                 )?;
             }
-            "bgra8" => {
+            DumpType::Bgra8 => {
                 dump_subtitle_images(
                     ImageDumpType::Raw,
-                    mkv_path,
-                    output_path,
+                    &mkv_path,
+                    &output_path,
                     num_subtitles,
                     track_number,
                 )?;
             }
-            "block" => {
-                dump_subtitle_block_data(mkv_path, output_path, num_subtitles, track_number)?
+            DumpType::Block => {
+                dump_subtitle_block_data(&mkv_path, &output_path, num_subtitles, track_number)?
             }
-            _ => panic!("Unknown dump type '{}'", dump_type),
+        },
+        Commands::Match {
+            mkv_path,
+            reference_path,
+        } => {
+            match_subtitles(
+                &mkv_path,
+                &reference_path,
+                num_subtitles,
+                track_number,
+                max_distance,
+            )?;
         }
-    } else if let Some(matches) = matches.subcommand_matches("list") {
-        let file_type = matches.value_of("file type").unwrap().to_lowercase();
-        let input_path = matches.value_of("input path").unwrap();
-        match file_type.as_str() {
-            "mkv" => {
-                list_mkv_subtitles(input_path, num_subtitles, track_number)?;
-            }
-            "srt" => {
-                list_srt_subtitles(input_path, num_subtitles)?;
-            }
-            _ => panic!("Unknown file type"),
-        }
-    } else if let Some(matches) = matches.subcommand_matches("list-tracks") {
-        let mkv_path = matches.value_of("mkv path").unwrap();
-        list_tracks(mkv_path)?;
-    } else {
-        println!("Invalid input. Use --help to display help.")
     }
 
     Ok(())
