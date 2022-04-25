@@ -11,7 +11,7 @@ use windows::{
 };
 
 use crate::{
-    image::scale_image,
+    image::{blend_with_color, scale_image},
     pgs,
     text::sanitize_text,
     vob::{self, parse_idx},
@@ -413,6 +413,18 @@ fn get_first_n_subtitles<R: Read>(
 fn process_bitmap(bitmap: &SoftwareBitmap, engine: &OcrEngine) -> Result<Option<String>> {
     let width = bitmap.PixelWidth()? as usize;
     let height = bitmap.PixelHeight()? as usize;
+
+    // Windows's OCR likes a solid color background rather than transparent.
+    // TODO: Use D2D/D3D?
+    blend_with_color(
+        &bitmap,
+        &Color {
+            R: 0,
+            G: 0,
+            B: 0,
+            A: 255,
+        },
+    )?;
 
     // Window's OCR engine seems to have a problem with images that are
     // too small. Scaling the image up seems to help.
