@@ -6,6 +6,7 @@ mod pgs;
 mod srt;
 mod text;
 mod vob;
+mod string;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -24,7 +25,7 @@ use windows::{
     Win32::System::WinRT::{RoInitialize, RO_INIT_MULTITHREADED},
 };
 
-use crate::mkv::{load_first_n_english_subtitles, KnownLanguage, MkvFile};
+use crate::{mkv::{load_first_n_english_subtitles, KnownLanguage, MkvFile}, string::normalize_to_shortest_string};
 
 fn main() -> Result<()> {
     let args = Args::parse();
@@ -516,9 +517,7 @@ fn compute_distances(
         );
         for (ref_file, ref_subtitle) in ref_subtitles {
             // Normalize to shortest
-            let length = subtitle.len().min(ref_subtitle.len());
-            let normalized_subtitle = &subtitle[0..length];
-            let normalized_ref_subtitle = &ref_subtitle[0..length];
+            let (normalized_subtitle, normalized_ref_subtitle) = normalize_to_shortest_string(&subtitle, &ref_subtitle);
 
             let distance = levenshtein(normalized_subtitle, normalized_ref_subtitle);
             let matches = distances.entry(file.clone()).or_insert(Vec::new());
