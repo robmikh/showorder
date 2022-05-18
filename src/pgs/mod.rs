@@ -36,7 +36,7 @@ pub fn parse_segments(data: &[u8]) -> Result<Option<SoftwareBitmap>> {
     let mut reader = std::io::Cursor::new(data);
     let mut last_palette_data: Option<Vec<ConvertedPaletteEntry>> = None;
     while !reader.is_at_end() {
-        let segment_header: SegmentHeader = reader.dezerialize().unwrap();
+        let segment_header: SegmentHeader = reader.deserialize().unwrap();
         if segment_header.len == 0 {
             if segment_header.ty != SegmentType::EndDisplaySet {
                 panic!(
@@ -78,10 +78,10 @@ pub fn parse_segments(data: &[u8]) -> Result<Option<SoftwareBitmap>> {
 fn read_palette_def_segment(
     reader: &mut std::io::Cursor<&[u8]>,
 ) -> std::io::Result<(PaletteDef, Vec<PaletteEntry>)> {
-    let palette_def: PaletteDef = reader.dezerialize()?;
+    let palette_def: PaletteDef = reader.deserialize()?;
     let mut palettes = Vec::new();
     while !reader.is_at_end() {
-        let palette: PaletteEntry = reader.dezerialize()?;
+        let palette: PaletteEntry = reader.deserialize()?;
         palettes.push(palette);
     }
     Ok((palette_def, palettes))
@@ -124,7 +124,7 @@ fn convert_palette_color(entry: &PaletteEntry) -> ConvertedPaletteEntry {
 fn read_object_def_segment(
     reader: &mut std::io::Cursor<&[u8]>,
 ) -> std::io::Result<(ObjectDef, Vec<Vec<(i32, i32)>>)> {
-    let object_def: ObjectDef = reader.dezerialize()?;
+    let object_def: ObjectDef = reader.deserialize()?;
     let mut color_data_lines: Vec<Vec<(i32, i32)>> = Vec::new();
     let mut current_line: Vec<(i32, i32)> = Vec::new();
     while !reader.is_at_end() {

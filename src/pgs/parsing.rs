@@ -65,13 +65,13 @@ macro_rules! pgs_enum {
 }
 
 pub trait PgsDeserializer {
-    fn dezerialize<T: Deserialize + Sized>(&mut self) -> std::io::Result<T>;
+    fn deserialize<T: Deserialize + Sized>(&mut self) -> std::io::Result<T>;
     fn ref_bytes(&mut self, len: usize) -> std::io::Result<&[u8]>;
     fn is_at_end(&self) -> bool;
 }
 
 impl PgsDeserializer for std::io::Cursor<&[u8]> {
-    fn dezerialize<T: Deserialize>(&mut self) -> std::io::Result<T> {
+    fn deserialize<T: Deserialize>(&mut self) -> std::io::Result<T> {
         T::deserialize::<Self>(self)
     }
 
