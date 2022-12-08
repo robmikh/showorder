@@ -336,6 +336,7 @@ fn process_input_path<P: AsRef<Path>>(
             .collect();
         result = paths
             .par_iter()
+            //.iter()
             .filter_map(|p| {
                 let path = p.path();
                 if let Some(ext) = path.extension() {
@@ -400,6 +401,7 @@ fn process_reference_path<P: AsRef<Path>>(
             .collect();
         result = paths
             .par_iter()
+            //.iter()
             .filter_map(|p| {
                 let path = p.path();
                 if let Some(ext) = path.extension() {

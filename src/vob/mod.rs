@@ -155,11 +155,14 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
         let _date_data = reader.read_u16::<BigEndian>().unwrap();
         let next_seq_position = reader.read_u16::<BigEndian>().unwrap() as usize;
 
+        // Ordering isn't gartunteed, so we must defer the parsing
         let mut size = None;
         let mut current_color_palette = None;
         let mut current_alpha_palette = None;
+        let mut interlaced_data = None;
         loop {
             let command_type = reader.read_u8().unwrap();
+            //println!("{:X}", command_type);
             match command_type {
                 0x00 => { /* Start subpicture */ }
                 0x01 => { /* Start displaying */ }
@@ -193,21 +196,7 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
                     let second_line_position = second_line_position - data_packet_data_start;
                     let even_data = &data_packet_data[first_line_position..second_line_position];
                     let odd_data = &data_packet_data[second_line_position..];
-                    {
-                        let palette = build_subpalette(
-                            &palette,
-                            &current_color_palette.unwrap(),
-                            &current_alpha_palette.unwrap(),
-                        );
-                        let (width, height) = size.unwrap();
-                        let even_lines_pixels =
-                            decode_image(even_data, width, height / 2, &palette);
-                        let odd_lines_pixels =
-                            decode_image(odd_data, width, height - height / 2, &palette);
-                        let bytes =
-                            interlace_image(&even_lines_pixels, &odd_lines_pixels, width, height);
-                        return Some((bytes, width, height));
-                    }
+                    interlaced_data = Some((even_data, odd_data));
                 }
                 0xFF => {
                     break;
@@ -216,6 +205,24 @@ fn decode_block(block_data: &[u8], palette: &[Color]) -> Option<(Vec<u8>, usize,
                     panic!("Unknown command type: 0x{:X}", command_type)
                 }
             }
+        }
+
+        // Now complete parsing
+        if let Some((even_data, odd_data)) = interlaced_data {
+            let palette = build_subpalette(
+                &palette,
+                &current_color_palette.expect("No color palette found!"),
+                &current_alpha_palette.expect("No alpha palette found!"),
+            );
+            let (width, height) = size.expect("No size found!");
+            //println!("Size: {} x {}", width, height);
+            let even_lines_pixels =
+                decode_image(even_data, width, height / 2, &palette);
+            let odd_lines_pixels =
+                decode_image(odd_data, width, height - height / 2, &palette);
+            let bytes =
+                interlace_image(&even_lines_pixels, &odd_lines_pixels, width, height);
+            return Some((bytes, width, height));
         }
 
         if current_sequence_position == next_seq_position {
@@ -254,7 +261,9 @@ fn build_subpalette(palette: &[Color], color_info: &[usize], alpha_info: &[usize
 fn interlace_image(even_data: &[u8], odd_data: &[u8], width: usize, height: usize) -> Vec<u8> {
     let bytes_per_pixel = 4;
     let mut bytes = vec![0u8; width * height * bytes_per_pixel];
-    assert_eq!(even_data.len() + odd_data.len(), bytes.len());
+    // TODO: Somtimes we're an entire row short...
+    //assert_eq!(even_data.len() + odd_data.len(), bytes.len());
+    assert!(even_data.len() + odd_data.len() <= bytes.len());
     let stride = width * bytes_per_pixel;
     for (i, line) in even_data.chunks(stride).enumerate() {
         let interlaced_index = (i * 2) * stride;
