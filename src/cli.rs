@@ -33,6 +33,9 @@ pub enum Commands {
         output_path: String,
     },
     Match {
+        #[clap(long)]
+        skip_ref: Option<u64>,
+
         mkv_path: String,
         reference_path: String,
     },

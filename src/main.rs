@@ -82,6 +82,7 @@ fn main() -> Result<()> {
             }
         },
         Commands::Match {
+            skip_ref,
             mkv_path,
             reference_path,
         } => {
@@ -91,6 +92,7 @@ fn main() -> Result<()> {
                 num_subtitles,
                 track_number,
                 max_distance,
+                skip_ref,
             )?;
         }
     }
@@ -231,7 +233,7 @@ fn list_mkv_subtitles(
 fn list_srt_subtitles(srt_path: &str, num_subtitles: usize) -> Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from srt files...");
-    let files = process_reference_path(&srt_path, num_subtitles)?;
+    let files = process_reference_path(&srt_path, num_subtitles, None)?;
     print_subtitles(&files);
     Ok(())
 }
@@ -242,6 +244,7 @@ fn match_subtitles(
     num_subtitles: usize,
     track_number: Option<u64>,
     max_distance: Option<usize>,
+    skip_ref: Option<u64>,
 ) -> Result<()> {
     // Collect subtitles from the file(s)
     println!("Loading subtitles from mkv files...");
@@ -255,7 +258,7 @@ fn match_subtitles(
 
     // Load reference data
     println!("Loading reference data...");
-    let ref_files = process_reference_path(&ref_path, num_subtitles)?;
+    let ref_files = process_reference_path(&ref_path, num_subtitles, skip_ref)?;
 
     // Flatten our data
     let subtitles = flatten_subtitles(&files);
@@ -391,6 +394,7 @@ fn print_subtitles(files: &Vec<(String, Vec<String>)>) {
 fn process_reference_path<P: AsRef<Path>>(
     path: P,
     num_subtitles: usize,
+    skip_secs: Option<u64>,
 ) -> Result<Vec<(String, Vec<String>)>> {
     let path = path.as_ref();
     let mut result = Vec::new();
@@ -406,7 +410,7 @@ fn process_reference_path<P: AsRef<Path>>(
                 let path = p.path();
                 if let Some(ext) = path.extension() {
                     if ext == "srt" {
-                        let subtitles = srt::parse_n_subtitles(&path, num_subtitles);
+                        let subtitles = srt::parse_n_subtitles(&path, num_subtitles, skip_secs);
                         if !subtitles.is_empty() {
                             let path = std::fs::canonicalize(path).unwrap();
                             let path = path.to_str().unwrap().to_owned();
@@ -420,7 +424,7 @@ fn process_reference_path<P: AsRef<Path>>(
     } else if path.exists() && path.is_file() {
         if let Some(ext) = path.extension() {
             if ext == "srt" {
-                let subtitles = srt::parse_n_subtitles(&path, num_subtitles);
+                let subtitles = srt::parse_n_subtitles(&path, num_subtitles, skip_secs);
                 if !subtitles.is_empty() {
                     let path = std::fs::canonicalize(path).unwrap();
                     let path = path.to_str().unwrap().to_owned();
@@ -611,7 +615,7 @@ mod test {
             None,
         )?;
         let subtitles = flatten_subtitles(&subtitles);
-        let ref_subtitles = process_reference_path("data/popeye/srt", num_subtitles)?;
+        let ref_subtitles = process_reference_path("data/popeye/srt", num_subtitles, None)?;
         let ref_subtitles = flatten_subtitles(&ref_subtitles);
 
         let distances = compute_distances(&subtitles, &ref_subtitles);
